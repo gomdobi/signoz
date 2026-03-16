@@ -78,7 +78,6 @@ function DashboardDescription(props: DashboardDescriptionProps): JSX.Element {
 		isDashboardLocked,
 		setSelectedDashboard,
 		handleToggleDashboardSlider,
-		setSelectedRowWidgetId,
 		handleDashboardLockToggle,
 	} = useDashboard();
 
@@ -146,7 +145,6 @@ function DashboardDescription(props: DashboardDescriptionProps): JSX.Element {
 	const [addPanelPermission] = useComponentPermission(permissions, userRole);
 
 	const onEmptyWidgetHandler = useCallback(() => {
-		setSelectedRowWidgetId(null);
 		handleToggleDashboardSlider(true);
 		logEvent('Dashboard Detail: Add new panel clicked', {
 			dashboardId: selectedDashboard?.id,
@@ -271,7 +269,6 @@ function DashboardDescription(props: DashboardDescriptionProps): JSX.Element {
 		};
 
 		updateDashboardMutation.mutate(updatedDashboard, {
-			// eslint-disable-next-line sonarjs/no-identical-functions
 			onSuccess: (updatedDashboard) => {
 				if (updatedDashboard.data) {
 					if (updatedDashboard.data.data.layout) {

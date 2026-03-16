@@ -95,6 +95,12 @@ exporters:
       enabled: false
   prometheus:
     endpoint: 0.0.0.0:8889
+  metadataexporter:
+    cache:
+      provider: in_memory
+    dsn: tcp://clickhouse:9000/signoz_metadata
+    enabled: true
+    timeout: 45s
 service:
   telemetry:
     logs:
@@ -106,19 +112,19 @@ service:
     traces:
       receivers: [otlp]
       processors: [signozspanmetrics/delta, batch]
-      exporters: [clickhousetraces, signozmeter]
+      exporters: [clickhousetraces, metadataexporter, signozmeter]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [signozclickhousemetrics, signozmeter, prometheus]
+      exporters: [signozclickhousemetrics, metadataexporter, signozmeter, prometheus]
     metrics/prometheus:
       receivers: [prometheus]
       processors: [batch]
-      exporters: [signozclickhousemetrics, signozmeter, prometheus]
+      exporters: [signozclickhousemetrics, metadataexporter, signozmeter, prometheus]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [clickhouselogsexporter, signozmeter]
+      exporters: [clickhouselogsexporter, metadataexporter, signozmeter]
     metrics/meter:
       receivers: [signozmeter]
       processors: [batch/meter]
