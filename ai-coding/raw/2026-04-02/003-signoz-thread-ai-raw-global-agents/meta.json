@@ -1,0 +1,50 @@
+{
+  "task_id": "2026-04-02-003-signoz-thread-ai-raw-global-agents",
+  "title": "thread-level AI정리 raw record using global AGENTS in signoz repository",
+  "timestamp": "2026-04-02T15:01:53+0900",
+  "branch": "main",
+  "repository": "/Users/gomdobi/PROJECT/REPOSITORY/signoz",
+  "base_commit": "f9de7c47b",
+  "changed_files": [
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md",
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/diff.patch",
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json"
+  ],
+  "created_files": [
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md",
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/diff.patch",
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json"
+  ],
+  "executed_commands": [
+    "pwd && git rev-parse --show-toplevel && git branch --show-current && git status --short && git remote -v",
+    "find /Users/gomdobi -maxdepth 3 -name AGENTS.md | sort | sed -n '1,40p'",
+    "find ai-coding -maxdepth 4 -type f 2>/dev/null | sort | sed -n '1,120p'",
+    "sed -n '1,220p' /Users/gomdobi/.codex/AGENTS.md",
+    "sed -n '1,220p' AGENTS.md",
+    "sed -n '1,240p' ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/task.md",
+    "sed -n '1,240p' ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/meta.json",
+    "sed -n '1,120p' ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/diff.patch",
+    "sed -n '1,120p' ai-coding/raw/2026-04-02/001-signoz-agents-uptime-kuma-record/diff.patch",
+    "git status --short && git diff --no-ext-diff && git diff --no-ext-diff --cached",
+    "date '+%Y-%m-%dT%H:%M:%S%z'",
+    "git diff --no-index -- /dev/null AGENTS.md > ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/diff.patch"
+  ],
+  "verification_commands": [
+    "find ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents -maxdepth 1 -type f | sort",
+    "python3 json parse for meta.json",
+    "git status --short",
+    "git log --oneline --decorate -3"
+  ],
+  "outcome": "current thread instructions and current repository state were recorded as raw dataset artifacts under ai-coding/raw using global AGENTS rules",
+  "status": "verified_created",
+  "related_user_requests": [
+    "이 스레드에서는 전역 AGENTS 기준으로 `AI정리`를 수행해. 결과는 현재 프로젝트 저장소의 `ai-coding/raw/YYYY-MM-DD/<task-id>/`에 1차 원천 데이터로 저장하고, 작업 단위마다 `task.md`, `diff.patch`, `meta.json`을 생성해. 현재 스레드와 현재 저장소 상태 기준의 실제 근거만 기록하고, 추측하지 말고, 확인 불가 항목은 `unknown`으로 표기해. 특별한 지시가 없으면 현재 브랜치에만 반영하고 커밋/푸시까지 진행해. 병합, 가공, 학습/eval 생성은 `/Users/gomdobi/PROJECT/REPOSITORY/ai-devops-dataset`에서만 한다.",
+    "AI정리"
+  ],
+  "unknown": [
+    "AGENTS.md untracked file creator",
+    "ai-coding/raw/2026-04-02/002-signoz-aijeongri-current-thread creator",
+    "ai-coding/raw/2026-04-02/003-signoz-ai-jeongri-rerun creator",
+    "remote main branch protection policy"
+  ]
+}
