@@ -1,0 +1,85 @@
+{
+  "task_id": "2026-04-02-005-signoz-aijeongri-clean-main-state",
+  "title": "clean main state AI정리 raw record in signoz repository",
+  "timestamp": "2026-04-02T15:08:46+0900",
+  "branch": "main",
+  "repository": "/Users/gomdobi/PROJECT/REPOSITORY/signoz",
+  "base_commit": "68625bcc1fa82677e581b0fb984541ec696ef3e6",
+  "instruction_sources": [
+    "/Users/gomdobi/.codex/AGENTS.md",
+    "/Users/gomdobi/PROJECT/REPOSITORY/signoz/AGENTS.md"
+  ],
+  "tracked_diff": "empty",
+  "untracked_diff": "empty",
+  "changed_files": [
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/task.md",
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch",
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json"
+  ],
+  "created_files": [
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/task.md",
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch",
+    "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json"
+  ],
+  "executed_commands": [
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz status --short --branch",
+    "sed -n '1,220p' /Users/gomdobi/.codex/AGENTS.md",
+    "sed -n '1,220p' /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/task.md",
+    "sed -n '1,220p' /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/meta.json",
+    "wc -c /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/diff.patch",
+    "sed -n '1,220p' /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/diff.patch",
+    "date '+%Y-%m-%dT%H:%M:%S%z'",
+    "if [ -e /Users/gomdobi/PROJECT/REPOSITORY/signoz/AGENTS.md ]; then printf 'AGENTS.md=present\\n'; if git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz ls-files --error-unmatch AGENTS.md >/dev/null 2>&1; then printf 'AGENTS.md_status=tracked\\n'; else printf 'AGENTS.md_status=untracked\\n'; fi; else printf 'AGENTS.md=absent\\n'; fi",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz remote -v",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz rev-parse --abbrev-ref HEAD",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz rev-parse HEAD",
+    "find /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02 -maxdepth 1 -mindepth 1 -type d | sort",
+    "mkdir -p /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state",
+    "rm -f /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz diff --no-index -- /dev/null ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/task.md",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz diff --no-index -- /dev/null ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json"
+  ],
+  "verification_commands": [
+    "find /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state -maxdepth 1 -type f | sort",
+    "python3 -m json.tool /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json >/dev/null && echo OK",
+    "git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz status --short --branch",
+    "wc -c /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch",
+    "sed -n '1,220p' /Users/gomdobi/PROJECT/REPOSITORY/signoz/ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch"
+  ],
+  "evidence": {
+    "git_status_before_change": "## main...origin/main",
+    "git_status_after_artifact_creation": "## main...origin/main\n?? ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/",
+    "root_agents_md": "present_tracked",
+    "remote_names": [
+      "origin",
+      "upstream"
+    ],
+    "existing_raw_dirs": [
+      "ai-coding/raw/2026-04-02/001-signoz-agents-uptime-kuma-record",
+      "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw",
+      "ai-coding/raw/2026-04-02/002-signoz-aijeongri-current-thread",
+      "ai-coding/raw/2026-04-02/003-signoz-ai-jeongri-rerun",
+      "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents",
+      "ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state"
+    ],
+    "reference_artifact": "ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state",
+    "artifact_files_verified": [
+      "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch",
+      "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json",
+      "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/task.md"
+    ],
+    "diff_patch_scope": [
+      "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/task.md",
+      "ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/meta.json"
+    ]
+  },
+  "outcome": "current-thread AI정리 request and the clean main branch state of the signoz repository were recorded as first-stage raw dataset artifacts under ai-coding/raw",
+  "status": "verified_created",
+  "related_user_requests": [
+    "AI정리"
+  ],
+  "unknown": [
+    "creator of existing raw directories under ai-coding/raw/2026-04-02",
+    "self patch for ai-coding/raw/2026-04-02/005-signoz-aijeongri-clean-main-state/diff.patch"
+  ]
+}
