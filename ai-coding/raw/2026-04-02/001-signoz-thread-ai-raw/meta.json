@@ -1,19 +1,19 @@
 {
-  "task_id": "2026-04-02-001-signoz-thread-ai-raw",
+  "task_id": "2026-04-02-002-signoz-thread-ai-raw",
   "title": "thread-level AI정리 raw record in signoz repository",
   "timestamp": "2026-04-02T14:54:54+09:00",
   "branch": "main",
   "repository": "/Users/gomdobi/PROJECT/REPOSITORY/signoz",
   "base_commit": "f9de7c47b",
   "changed_files": [
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/task.md",
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/diff.patch",
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/meta.json"
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/task.md",
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/diff.patch",
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/meta.json"
   ],
   "created_files": [
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/task.md",
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/diff.patch",
-    "ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw/meta.json"
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/task.md",
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/diff.patch",
+    "ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw/meta.json"
   ],
   "executed_commands": [
     "pwd && date '+%Y-%m-%dT%H:%M:%S%z' && git rev-parse --abbrev-ref HEAD && git rev-parse --short HEAD && git status --short",
@@ -22,7 +22,7 @@
     "find ai-coding -maxdepth 4 -type f"
   ],
   "verification_commands": [
-    "find ai-coding/raw/2026-04-02/001-signoz-thread-ai-raw -maxdepth 1 -type f | sort",
+    "find ai-coding/raw/2026-04-02/002-signoz-thread-ai-raw -maxdepth 1 -type f | sort",
     "python3 json parse for meta.json",
     "git status --short"
   ],
@@ -30,7 +30,7 @@
   "status": "verified_created",
   "related_user_requests": [
     "브런치 하고 각 테스크 별로 저장 해놓고 내가 확인해서 최종 병합 할께",
-    "이 스레드에서는 전역 AGENTS 기준으로 AI정리를 수행해 ... ai-coding/raw/YYYY-MM-DD/<task-id>/ ... task.md, diff.patch, meta.json ... 현재 브랜치 반영, 커밋/푸시"
+    "이 스레드에서는 전역 AGENTS 기준으로 AI정리를 수행해. 결과는 현재 프로젝트 저장소의 ai-coding/raw/YYYY-MM-DD/<task-id>/에 1차 원천 데이터로 저장하고, 작업 단위마다 task.md, diff.patch, meta.json을 생성해. 현재 스레드와 현재 저장소 상태 기준의 실제 근거만 기록하고, 추측하지 말고, 확인 불가 항목은 unknown으로 표기해. 특별한 지시가 없으면 현재 브랜치에만 반영하고 커밋/푸시까지 진행해. 병합, 가공, 학습/eval 생성은 /Users/gomdobi/PROJECT/REPOSITORY/ai-devops-dataset에서만 한다."
   ],
   "unknown": [
     "AGENTS.md untracked file creator",
