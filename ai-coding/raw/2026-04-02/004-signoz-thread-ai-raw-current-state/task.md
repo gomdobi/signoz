@@ -33,6 +33,9 @@
   - `ai-coding/raw/2026-04-02/003-signoz-ai-jeongri-rerun/`
   - `ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/`
   - `ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/`
+- 검증 시점 `git status --short`에는 아래 tracked 변경도 확인됐다.
+  - `ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json`
+  - `ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md`
 
 ## 실행 명령
 
@@ -78,11 +81,14 @@ git -C /Users/gomdobi/PROJECT/REPOSITORY/signoz status --short
 - `git diff --no-index -- /dev/null AGENTS.md` 결과로 `AGENTS.md`가 untracked 신규 파일임을 확인했다.
 - `ai-coding/raw/2026-04-02` 아래 기존 디렉터리 3개를 확인했고, `003-signoz-thread-ai-raw-global-agents`는 `diff.patch`만 존재했다.
 - 후속 확인에서 `002-signoz-aijeongri-current-thread`, `003-signoz-ai-jeongri-rerun`, `003-signoz-thread-ai-raw-global-agents` 경로 모두 `task.md`, `diff.patch`, `meta.json` 또는 관련 파일을 포함한 untracked 상태로 보였다.
+- 후속 확인에서 `003-signoz-thread-ai-raw-global-agents/meta.json`, `003-signoz-thread-ai-raw-global-agents/task.md`는 tracked modified 상태로 보였다.
 - 이번 task의 1차 산출물 3종 생성 후 `meta.json` JSON 파싱이 정상으로 확인됐다.
 
 ## 버그 및 제약 사항
 
 - `AGENTS.md` untracked 파일 생성 주체: `unknown`
+- `ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json` 수정 주체: `unknown`
+- `ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md` 수정 주체: `unknown`
 - `002-signoz-aijeongri-current-thread`, `003-signoz-ai-jeongri-rerun`, `003-signoz-thread-ai-raw-global-agents` 생성 주체: `unknown`
 
 ## 다음 작업 맥락

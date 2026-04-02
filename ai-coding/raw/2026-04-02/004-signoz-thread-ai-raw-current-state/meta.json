@@ -16,6 +16,10 @@
     "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/",
     "ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/"
   ],
+  "tracked_changes_at_verification": [
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json",
+    "ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md"
+  ],
   "created_files": [
     "ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/task.md",
     "ai-coding/raw/2026-04-02/004-signoz-thread-ai-raw-current-state/diff.patch",
@@ -64,6 +68,8 @@
   ],
   "unknown": [
     "AGENTS.md untracked file creator",
+    "modifier of ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/meta.json",
+    "modifier of ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents/task.md",
     "creator of ai-coding/raw/2026-04-02/002-signoz-aijeongri-current-thread",
     "creator of ai-coding/raw/2026-04-02/003-signoz-ai-jeongri-rerun",
     "creator of ai-coding/raw/2026-04-02/003-signoz-thread-ai-raw-global-agents"
