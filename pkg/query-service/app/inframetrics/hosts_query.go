@@ -181,6 +181,94 @@ var HostsTableListQuery = v3.QueryRangeParamsV3{
 					Items:    []v3.FilterItem{},
 				},
 			},
+			"H": {
+				QueryName:  "H",
+				DataSource: v3.DataSourceMetrics,
+				AggregateAttribute: v3.AttributeKey{
+					Key:      metricNamesForHosts["memory"],
+					DataType: v3.AttributeKeyDataTypeFloat64,
+				},
+				Temporality: v3.Unspecified,
+				Filters: &v3.FilterSet{
+					Operator: "AND",
+					Items: []v3.FilterItem{
+						{
+							Key: v3.AttributeKey{
+								Key:      "state",
+								DataType: v3.AttributeKeyDataTypeString,
+								Type:     v3.AttributeKeyTypeTag,
+							},
+							Operator: v3.FilterOperatorEqual,
+							Value:    "used",
+						},
+						{
+							Key: v3.AttributeKey{
+								Key:      hostNameAttrKey,
+								DataType: v3.AttributeKeyDataTypeString,
+								Type:     v3.AttributeKeyTypeResource,
+							},
+							Operator: v3.FilterOperatorNotContains,
+							Value:    agentNameToIgnore,
+						},
+					},
+				},
+				GroupBy: []v3.AttributeKey{
+					{
+						Key:      hostNameAttrKey,
+						DataType: v3.AttributeKeyDataTypeString,
+						Type:     v3.AttributeKeyTypeResource,
+					},
+				},
+				Expression:       "H",
+				ReduceTo:         v3.ReduceToOperatorAvg,
+				TimeAggregation:  v3.TimeAggregationAvg,
+				SpaceAggregation: v3.SpaceAggregationSum,
+				Disabled:         true,
+			},
+			"I": {
+				QueryName:  "I",
+				DataSource: v3.DataSourceMetrics,
+				AggregateAttribute: v3.AttributeKey{
+					Key:      metricNamesForHosts["memory"],
+					DataType: v3.AttributeKeyDataTypeFloat64,
+				},
+				Temporality: v3.Unspecified,
+				Filters: &v3.FilterSet{
+					Operator: "AND",
+					Items: []v3.FilterItem{
+						{
+							Key: v3.AttributeKey{
+								Key:      hostNameAttrKey,
+								DataType: v3.AttributeKeyDataTypeString,
+								Type:     v3.AttributeKeyTypeResource,
+							},
+							Operator: v3.FilterOperatorNotContains,
+							Value:    agentNameToIgnore,
+						},
+					},
+				},
+				GroupBy: []v3.AttributeKey{
+					{
+						Key:      hostNameAttrKey,
+						DataType: v3.AttributeKeyDataTypeString,
+						Type:     v3.AttributeKeyTypeResource,
+					},
+				},
+				Expression:       "I",
+				ReduceTo:         v3.ReduceToOperatorAvg,
+				TimeAggregation:  v3.TimeAggregationAvg,
+				SpaceAggregation: v3.SpaceAggregationSum,
+				Disabled:         true,
+			},
+			"F2U": {
+				QueryName:  "F2U",
+				Expression: "H/I",
+				Legend:     "Memory Usage (%) - Unspecified",
+				Filters: &v3.FilterSet{
+					Operator: "AND",
+					Items:    []v3.FilterItem{},
+				},
+			},
 			"E": {
 				QueryName:  "E",
 				DataSource: v3.DataSourceMetrics,

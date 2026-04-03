@@ -57,7 +57,7 @@ var (
 
 	queryNamesForTopHosts = map[string][]string{
 		"cpu":    {"A", "B", "F1"},
-		"memory": {"C", "D", "F2"},
+		"memory": {"C", "D", "F2", "H", "I", "F2U"},
 		"wait":   {"E", "F", "F3"},
 		"load15": {"G"},
 	}
@@ -523,6 +523,11 @@ func (h *HostsRepo) GetHostList(ctx context.Context, orgID valuer.UUID, req mode
 			}
 			if memory, ok := row.Data["F2"].(float64); ok {
 				record.Memory = memory
+			}
+			if (record.Memory <= 0 || math.IsNaN(record.Memory) || math.IsInf(record.Memory, 0)) && row.Data["F2U"] != nil {
+				if memory, ok := row.Data["F2U"].(float64); ok {
+					record.Memory = memory
+				}
 			}
 			if wait, ok := row.Data["F3"].(float64); ok {
 				record.Wait = wait
