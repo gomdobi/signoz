@@ -66,6 +66,10 @@ services:
       - bash
       - -c
       - |
+        if [ -x /var/lib/clickhouse/user_scripts/histogramQuantile ]; then
+          echo "histogramQuantile already bundled"
+          exit 0
+        fi
         version="v0.0.1"
         node_os=$$(uname -s | tr '[:upper:]' '[:lower:]')
         node_arch=$$(uname -m | sed s/aarch64/arm64/ | sed s/x86_64/amd64/)
