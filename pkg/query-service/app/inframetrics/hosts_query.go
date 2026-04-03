@@ -100,7 +100,7 @@ var HostsTableListQuery = v3.QueryRangeParamsV3{
 					Key:      metricNamesForHosts["memory"],
 					DataType: v3.AttributeKeyDataTypeFloat64,
 				},
-				Temporality: v3.Cumulative,
+				Temporality: v3.Unspecified,
 				Filters: &v3.FilterSet{
 					Operator: "AND",
 					Items: []v3.FilterItem{
@@ -144,7 +144,7 @@ var HostsTableListQuery = v3.QueryRangeParamsV3{
 					Key:      metricNamesForHosts["memory"],
 					DataType: v3.AttributeKeyDataTypeFloat64,
 				},
-				Temporality: v3.Cumulative,
+				Temporality: v3.Unspecified,
 				Filters: &v3.FilterSet{
 					Operator: "AND",
 					Items: []v3.FilterItem{
