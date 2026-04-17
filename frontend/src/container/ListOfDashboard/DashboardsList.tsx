@@ -82,6 +82,7 @@ import {
 	Widgets,
 } from 'types/api/dashboard/getAll';
 import APIError from 'types/api/error';
+import { isModifierKeyPressed } from 'utils/app';
 
 import DashboardTemplatesModal from './DashboardTemplates/DashboardTemplatesModal';
 import ImportJSON from './ImportJSON';
@@ -372,11 +373,7 @@ function DashboardsList(): JSX.Element {
 
 				const onClickHandler = (event: React.MouseEvent<HTMLElement>): void => {
 					event.stopPropagation();
-					if (event.metaKey || event.ctrlKey) {
-						window.open(getLink(), '_blank');
-					} else {
-						safeNavigate(getLink());
-					}
+					safeNavigate(getLink(), { newTab: isModifierKeyPressed(event) });
 					logEvent('Dashboard List: Clicked on dashboard', {
 						dashboardId: dashboard.id,
 						dashboardName: dashboard.name,
@@ -563,6 +560,7 @@ function DashboardsList(): JSX.Element {
 				label: (
 					<div
 						className="create-dashboard-menu-item"
+						data-testid="import-json-menu-cta"
 						onClick={(): void => onModalHandler(false)}
 					>
 						<Radius size={14} /> Import JSON
@@ -576,6 +574,7 @@ function DashboardsList(): JSX.Element {
 						href="https://signoz.io/docs/dashboards/dashboard-templates/overview/"
 						target="_blank"
 						rel="noopener noreferrer"
+						data-testid="view-templates-menu-cta"
 					>
 						<Flex
 							justify="space-between"
@@ -599,6 +598,7 @@ function DashboardsList(): JSX.Element {
 				label: (
 					<div
 						className="create-dashboard-menu-item"
+						data-testid="create-dashboard-menu-cta"
 						onClick={(): void => {
 							onNewDashboardHandler();
 						}}
@@ -762,6 +762,7 @@ function DashboardsList(): JSX.Element {
 								placeholder="Search by name, description, or tags..."
 								prefix={<Search size={12} color={Color.BG_VANILLA_400} />}
 								value={searchString}
+								data-testid="dashboards-list-search"
 								onChange={handleSearch}
 							/>
 							{createNewDashboard && (
@@ -775,6 +776,7 @@ function DashboardsList(): JSX.Element {
 										type="primary"
 										className="periscope-btn primary btn"
 										icon={<Plus size={14} />}
+										data-testid="new-dashboard-cta"
 										onClick={(): void => {
 											logEvent('Dashboard List: New dashboard clicked', {});
 										}}
