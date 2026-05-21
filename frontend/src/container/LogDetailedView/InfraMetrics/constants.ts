@@ -1757,7 +1757,6 @@ export const getHostQueryPayload = (
 							},
 							aggregateOperator: 'avg',
 							dataSource: DataSource.METRICS,
-							temporality: 'Cumulative',
 							disabled: false,
 							expression: 'A',
 							filters: {
