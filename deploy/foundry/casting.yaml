@@ -1,0 +1,199 @@
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker
+  signoz:
+    spec:
+      image: signoz/signoz:v0.130.1
+      version: v0.130.1
+      env:
+        SIGNOZ_ALERTMANAGER_PROVIDER: signoz
+        SIGNOZ_TOKENIZER_JWT_SECRET: secret
+  ingester:
+    spec:
+      image: signoz/signoz-otel-collector:v0.144.5
+      version: v0.144.5
+      env:
+        OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
+        LOW_CARDINAL_EXCEPTION_GROUPING: "false"
+        SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_CLUSTER: cluster
+        SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_REPLICATION: "true"
+        SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
+      config:
+        data:
+          ingester.yaml: |
+            connectors:
+              signozmeter:
+                metrics_flush_interval: 1h
+                dimensions:
+                  - name: service.name
+                  - name: deployment.environment
+                  - name: host.name
+            receivers:
+              otlp:
+                protocols:
+                  grpc:
+                    endpoint: 0.0.0.0:4317
+                  http:
+                    endpoint: 0.0.0.0:4318
+              prometheus:
+                config:
+                  global:
+                    scrape_interval: 60s
+                  scrape_configs:
+                    - job_name: otel-collector
+                      static_configs:
+                      - targets:
+                          - 0.0.0.0:8888
+                        labels:
+                          job_name: otel-collector
+                    - job_name: uptime-kuma
+                      metrics_path: /metrics
+                      scrape_interval: 30s
+                      basic_auth:
+                        username: apikey
+                        password_file: /app/secrets/uptime_kuma_api_key
+                      static_configs:
+                        - targets:
+                            - uptime-kuma:3001
+                          labels:
+                            job_name: uptime-kuma
+            processors:
+              batch:
+                send_batch_size: 10000
+                send_batch_max_size: 11000
+                timeout: 10s
+              batch/meter:
+                send_batch_max_size: 25000
+                send_batch_size: 20000
+                timeout: 1s
+              resourcedetection:
+                detectors: [env, system]
+                timeout: 2s
+              signozspanmetrics/delta:
+                metrics_exporter: signozclickhousemetrics
+                metrics_flush_interval: 60s
+                latency_histogram_buckets: [100us, 1ms, 2ms, 6ms, 10ms, 50ms, 100ms, 250ms, 500ms, 1000ms, 1400ms, 2000ms, 5s, 10s, 20s, 40s, 60s ]
+                dimensions_cache_size: 100000
+                aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+                enable_exp_histogram: true
+                dimensions:
+                  - name: service.namespace
+                    default: default
+                  - name: deployment.environment
+                    default: default
+                  - name: signoz.collector.id
+                  - name: service.version
+                  - name: browser.platform
+                  - name: browser.mobile
+                  - name: k8s.cluster.name
+                  - name: k8s.node.name
+                  - name: k8s.namespace.name
+                  - name: host.name
+                  - name: host.type
+                  - name: container.name
+            extensions:
+              health_check:
+                endpoint: 0.0.0.0:13133
+              pprof:
+                endpoint: 0.0.0.0:1777
+            exporters:
+              clickhousetraces:
+                datasource: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_traces
+                low_cardinal_exception_grouping: ${env:LOW_CARDINAL_EXCEPTION_GROUPING}
+                use_new_schema: true
+              signozclickhousemetrics:
+                dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_metrics
+              clickhouselogsexporter:
+                dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_logs
+                timeout: 10s
+                use_new_schema: true
+              signozclickhousemeter:
+                dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_meter
+                timeout: 45s
+                sending_queue:
+                  enabled: false
+              prometheus:
+                endpoint: 0.0.0.0:8889
+              metadataexporter:
+                cache:
+                  provider: in_memory
+                dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_metadata
+                enabled: true
+                timeout: 45s
+            service:
+              telemetry:
+                logs:
+                  encoding: json
+              extensions:
+                - health_check
+                - pprof
+              pipelines:
+                traces:
+                  receivers: [otlp]
+                  processors: [signozspanmetrics/delta, batch]
+                  exporters: [clickhousetraces, metadataexporter, signozmeter]
+                metrics:
+                  receivers: [otlp]
+                  processors: [batch]
+                  exporters: [signozclickhousemetrics, metadataexporter, signozmeter, prometheus]
+                metrics/prometheus:
+                  receivers: [prometheus]
+                  processors: [batch]
+                  exporters: [signozclickhousemetrics, metadataexporter, signozmeter, prometheus]
+                logs:
+                  receivers: [otlp]
+                  processors: [batch]
+                  exporters: [clickhouselogsexporter, metadataexporter, signozmeter]
+                metrics/meter:
+                  receivers: [signozmeter]
+                  processors: [batch/meter]
+                  exporters: [signozclickhousemeter]
+  metastore:
+    kind: sqlite
+  telemetrykeeper:
+    kind: zookeeper
+    spec:
+      image: signoz/zookeeper:3.7.1
+      version: 3.7.1
+  telemetrystore:
+    spec:
+      image: clickhouse/clickhouse-server:25.5.6
+      version: 25.5.6
+      config:
+        data:
+          config-0-0.yaml: |
+            macros:
+              replica: "example01-01-1"
+              shard: "01"
+  patches:
+    - target: "deployment/compose.yaml"
+      operations:
+        - op: add
+          path: /services/ingester/volumes/-
+          value: /app/secrets/uptime_kuma_api_key:/app/secrets/uptime_kuma_api_key:ro
+        - op: add
+          path: /services/ingester/ports/-
+          value: 8889:8889
+        - op: add
+          path: /services/signoz-telemetrystore-clickhouse-0-0/ports
+          value:
+            - 9000:9000
+            - 8123:8123
+            - 9181:9181
+        - op: replace
+          path: /volumes/signoz-telemetrykeeper-0-data/name
+          value: signoz-zookeeper-1
+        - op: replace
+          path: /volumes/signoz-telemetrystore-0-0-data/name
+          value: signoz-clickhouse
+        - op: replace
+          path: /volumes/signoz-metastore-sqlite-0-data/name
+          value: signoz-sqlite
+        - op: add
+          path: /services/signoz-telemetrykeeper-zookeeper-0/user
+          value: root

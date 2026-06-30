@@ -1,0 +1,182 @@
+connectors:
+  signozmeter:
+    dimensions:
+    - name: service.name
+    - name: deployment.environment
+    - name: host.name
+    metrics_flush_interval: 1h
+exporters:
+  clickhouselogsexporter:
+    dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_logs
+    sending_queue:
+      enabled: false
+    timeout: 10s
+    use_new_schema: true
+  clickhousetraces:
+    datasource: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_traces
+    low_cardinal_exception_grouping: ${env:LOW_CARDINAL_EXCEPTION_GROUPING}
+    sending_queue:
+      enabled: false
+    timeout: 45s
+    use_new_schema: true
+  metadataexporter:
+    cache:
+      provider: in_memory
+    dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_metadata
+    enabled: true
+    timeout: 45s
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  signozclickhousemeter:
+    dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_meter
+    sending_queue:
+      enabled: false
+    timeout: 45s
+  signozclickhousemetrics:
+    dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_metrics
+    sending_queue:
+      enabled: false
+    timeout: 45s
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  signoz_health_check:
+    endpoint: 0.0.0.0:13133
+processors:
+  batch:
+    send_batch_max_size: 11000
+    send_batch_size: 10000
+    timeout: 10s
+  batch/meter:
+    send_batch_max_size: 25000
+    send_batch_size: 20000
+    timeout: 1s
+  resourcedetection:
+    detectors:
+    - env
+    - system
+    timeout: 2s
+  signozspanmetrics/delta:
+    aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+    dimensions:
+    - default: default
+      name: service.namespace
+    - default: default
+      name: deployment.environment
+    - name: signoz.collector.id
+    - name: service.version
+    - name: browser.platform
+    - name: browser.mobile
+    - name: k8s.cluster.name
+    - name: k8s.node.name
+    - name: k8s.namespace.name
+    - name: host.name
+    - name: host.type
+    - name: container.name
+    dimensions_cache_size: 100000
+    enable_exp_histogram: true
+    latency_histogram_buckets:
+    - 100us
+    - 1ms
+    - 2ms
+    - 6ms
+    - 10ms
+    - 50ms
+    - 100ms
+    - 250ms
+    - 500ms
+    - 1000ms
+    - 1400ms
+    - 2000ms
+    - 5s
+    - 10s
+    - 20s
+    - 40s
+    - 60s
+    metrics_exporter: signozclickhousemetrics
+    metrics_flush_interval: 60s
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      global:
+        scrape_interval: 60s
+      scrape_configs:
+      - job_name: otel-collector
+        static_configs:
+        - labels:
+            job_name: otel-collector
+          targets:
+          - 0.0.0.0:8888
+      - basic_auth:
+          password_file: /app/secrets/uptime_kuma_api_key
+          username: apikey
+        job_name: uptime-kuma
+        metrics_path: /metrics
+        scrape_interval: 30s
+        static_configs:
+        - labels:
+            job_name: uptime-kuma
+          targets:
+          - uptime-kuma:3001
+service:
+  extensions:
+  - health_check
+  - pprof
+  pipelines:
+    logs:
+      exporters:
+      - clickhouselogsexporter
+      - metadataexporter
+      - signozmeter
+      processors:
+      - batch
+      receivers:
+      - otlp
+    metrics:
+      exporters:
+      - signozclickhousemetrics
+      - metadataexporter
+      - signozmeter
+      - prometheus
+      processors:
+      - batch
+      receivers:
+      - otlp
+    metrics/meter:
+      exporters:
+      - signozclickhousemeter
+      processors:
+      - batch/meter
+      receivers:
+      - signozmeter
+    metrics/prometheus:
+      exporters:
+      - signozclickhousemetrics
+      - metadataexporter
+      - signozmeter
+      - prometheus
+      processors:
+      - batch
+      receivers:
+      - prometheus
+    traces:
+      exporters:
+      - clickhousetraces
+      - metadataexporter
+      - signozmeter
+      processors:
+      - signozspanmetrics/delta
+      - batch
+      receivers:
+      - otlp
+  telemetry:
+    logs:
+      encoding: json
