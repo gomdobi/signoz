@@ -200,6 +200,30 @@ spec:
         - op: add
           path: /networks/signoz-network/external
           value: true
+        - op: replace
+          path: /services/signoz-signoz-0/networks
+          value:
+            signoz-network:
+              aliases:
+                - signoz
+        - op: add
+          path: /services/ingester/networks/signoz-network/aliases/-
+          value: signoz-otel-collector
+        - op: add
+          path: /services/ingester/networks/signoz-network/aliases/-
+          value: otel-collector
+        - op: replace
+          path: /services/signoz-telemetrykeeper-zookeeper-0/networks
+          value:
+            signoz-network:
+              aliases:
+                - zookeeper-1
+        - op: replace
+          path: /services/signoz-telemetrystore-clickhouse-0-0/networks
+          value:
+            signoz-network:
+              aliases:
+                - clickhouse
         - op: add
           path: /services/signoz-telemetrykeeper-zookeeper-0/user
           value: root

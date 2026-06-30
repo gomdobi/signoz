@@ -58,6 +58,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/s
 - ingester volume에는 아래 secret mount가 있어야 한다.
   - `/app/secrets/uptime_kuma_api_key:/app/secrets/uptime_kuma_api_key:ro`
 - compose network name은 `signoz-net`이어야 하며 `external: true`여야 한다.
+- 기존 내부 서비스명 호환을 위해 alias `signoz`, `signoz-otel-collector`, `otel-collector`, `zookeeper-1`, `clickhouse`를 유지한다.
 
 ### `deploy/foundry/pours/deployment/ingester/ingester.yaml`
 

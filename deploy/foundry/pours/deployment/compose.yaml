@@ -27,6 +27,8 @@ services:
       signoz-network:
         aliases:
         - signoz-ingester
+        - signoz-otel-collector
+        - otel-collector
     ports:
     - 4317:4317
     - 4318:4318
@@ -60,7 +62,9 @@ services:
       timeout: 10s
     image: signoz/signoz:v0.130.1
     networks:
-    - signoz-network
+      signoz-network:
+        aliases:
+        - signoz
     ports:
     - 8080:8080
     volumes:
@@ -83,7 +87,9 @@ services:
       timeout: 10s
     image: signoz/zookeeper:3.7.1
     networks:
-    - signoz-network
+      signoz-network:
+        aliases:
+        - zookeeper-1
     user: root
     volumes:
     - signoz-telemetrykeeper-0-data:/bitnami/zookeeper
@@ -110,7 +116,9 @@ services:
       timeout: 10s
     image: clickhouse/clickhouse-server:25.5.6
     networks:
-    - signoz-network
+      signoz-network:
+        aliases:
+        - clickhouse
     ports:
     - 9000:9000
     - 8123:8123
