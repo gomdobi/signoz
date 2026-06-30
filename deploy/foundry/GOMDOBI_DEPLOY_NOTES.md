@@ -41,7 +41,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/s
   - `signoz-clickhouse`
   - `signoz-sqlite`
   - `signoz-zookeeper-1`
-- 기존 Uptime Kuma/Prometheus/Grafana와 같은 Docker 네트워크를 유지하기 위해 compose network name은 `signoz-net`을 사용한다.
+- 기존 Uptime Kuma/Prometheus/Grafana와 같은 Docker 네트워크를 유지하기 위해 compose network name은 `signoz-net`을 사용하고 `external: true`로 둔다.
 
 ### `deploy/foundry/pours/deployment/compose.yaml`
 
@@ -57,7 +57,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/s
   - `8889:8889`
 - ingester volume에는 아래 secret mount가 있어야 한다.
   - `/app/secrets/uptime_kuma_api_key:/app/secrets/uptime_kuma_api_key:ro`
-- compose network name은 `signoz-net`이어야 한다.
+- compose network name은 `signoz-net`이어야 하며 `external: true`여야 한다.
 
 ### `deploy/foundry/pours/deployment/ingester/ingester.yaml`
 

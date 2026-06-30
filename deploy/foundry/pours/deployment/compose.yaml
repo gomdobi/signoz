@@ -1,6 +1,7 @@
 name: signoz
 networks:
   signoz-network:
+    external: true
     name: signoz-net
 services:
   ingester:

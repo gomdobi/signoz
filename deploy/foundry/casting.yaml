@@ -198,5 +198,8 @@ spec:
           path: /networks/signoz-network/name
           value: signoz-net
         - op: add
+          path: /networks/signoz-network/external
+          value: true
+        - op: add
           path: /services/signoz-telemetrykeeper-zookeeper-0/user
           value: root
