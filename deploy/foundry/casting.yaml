@@ -194,6 +194,9 @@ spec:
         - op: replace
           path: /volumes/signoz-metastore-sqlite-0-data/name
           value: signoz-sqlite
+        - op: replace
+          path: /networks/signoz-network/name
+          value: signoz-net
         - op: add
           path: /services/signoz-telemetrykeeper-zookeeper-0/user
           value: root

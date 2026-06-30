@@ -1,7 +1,7 @@
 name: signoz
 networks:
   signoz-network:
-    name: signoz-network
+    name: signoz-net
 services:
   ingester:
     command:
