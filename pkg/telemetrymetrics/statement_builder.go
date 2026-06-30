@@ -101,6 +101,23 @@ func (b *MetricQueryStatementBuilder) Build(
 		return nil, err
 	}
 
+	// TODO(srikanthccv): move the missing-key detection into the where clause
+	// visitor. Doing it here over the lexer-derived selectors can't tell a key
+	// from a value, so dashboard variables and bare literals in value position
+	// (e.g. `service.name = $service`) get flagged as missing keys. We still add
+	// a labels fallback for any unresolved selector so the query can be built,
+	// but we no longer emit a warning until the visitor can classify keys.
+	for _, sel := range keySelectors {
+		if _, ok := keys[sel.Name]; !ok {
+			keys[sel.Name] = []*telemetrytypes.TelemetryFieldKey{{
+				Name:          sel.Name,
+				FieldContext:  telemetrytypes.FieldContextAttribute,
+				FieldDataType: telemetrytypes.FieldDataTypeString,
+				Signal:        telemetrytypes.SignalMetrics,
+			}}
+		}
+	}
+
 	start, end = querybuilder.AdjustedMetricTimeRange(start, end, uint64(query.StepInterval.Seconds()), query)
 
 	return b.buildPipelineStatement(ctx, start, end, query, keys, variables)
