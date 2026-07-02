@@ -13,13 +13,26 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/s
 
 ## 현재 배포 기준
 
-- 확인일: 2026-06-30
-- upstream 릴리즈 태그: `v0.130.1`
-- 100.203 SigNoZ 이미지: `signoz/signoz:v0.130.1`
+- 확인일: 2026-07-02
+- upstream 릴리즈 태그: `v0.131.0`
+- 100.203 SigNoZ 이미지: `signoz/signoz:v0.131.0`
 - 100.203 collector 이미지: `signoz/signoz-otel-collector:v0.144.5`
-- 100.203 ClickHouse 이미지: `clickhouse/clickhouse-server:25.5.6`
+- 100.203 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
 - 100.204 collector-only 이미지: `signoz/signoz-otel-collector:v0.144.5`
+
+## v0.131.0 ClickHouse 주의사항
+
+SigNoZ `v0.131.0`은 bundled ClickHouse를 `25.12.5`로 올린다. ClickHouse 데이터 볼륨은 먼저 백업한 뒤 stack을 중지하고 업그레이드한다.
+
+100.203 배포 전 백업 대상:
+
+- `signoz-clickhouse`
+- `signoz-zookeeper-1`
+- `signoz-sqlite`
+- `signoz-telemetrystore-user-scripts`
+
+100.221 테스트에서는 `v0.130.1`에서 `v0.131.0`으로 올린 뒤 API 버전 `v0.131.0`, ClickHouse `25.12.5.44`, migrator exit code `0`, 최근 metrics write를 확인했다.
 
 ## Foundry 파일
 
@@ -101,7 +114,7 @@ grep -nE 'replica: example01-01-1|shard: "01"' deploy/foundry/pours/deployment/t
 
 ## 100.203 배포
 
-100.203은 `/app/signoz` 기준으로 배포한다.
+100.203은 `/app/signoz` 기준으로 배포한다. `v0.131.0` 배포는 ClickHouse 데이터 볼륨 백업이 선행되어야 한다.
 
 ```bash
 cd /app/signoz

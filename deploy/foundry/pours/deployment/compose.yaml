@@ -10,9 +10,6 @@ services:
     - |
       /signoz-otel-collector migrate sync check &&
       /signoz-otel-collector --config=/etc/otel-collector-config.yaml --manager-config=/etc/opamp-config.yaml --copy-path=/var/tmp/collector-config.yaml
-    deploy:
-      restart_policy:
-        condition: on-failure
     entrypoint:
     - /bin/sh
     environment:
@@ -33,15 +30,13 @@ services:
     - 4317:4317
     - 4318:4318
     - 8889:8889
+    restart: unless-stopped
     volumes:
     - ./ingester/ingester.yaml:/etc/otel-collector-config.yaml:ro
     - ./ingester/opamp.yaml:/etc/opamp-config.yaml:ro
     - /app/secrets/uptime_kuma_api_key:/app/secrets/uptime_kuma_api_key:ro
   signoz-signoz-0:
     container_name: signoz-signoz-0
-    deploy:
-      restart_policy:
-        condition: on-failure
     environment:
     - SIGNOZ_ALERTMANAGER_PROVIDER=signoz
     - SIGNOZ_SQLSTORE_PROVIDER=sqlite
@@ -60,13 +55,14 @@ services:
       - -q
       - http://localhost:8080/api/v1/health
       timeout: 10s
-    image: signoz/signoz:v0.130.1
+    image: signoz/signoz:v0.131.0
     networks:
       signoz-network:
         aliases:
         - signoz
     ports:
     - 8080:8080
+    restart: unless-stopped
     volumes:
     - signoz-metastore-sqlite-0-data:/var/lib/signoz
   signoz-telemetrykeeper-zookeeper-0:
@@ -90,6 +86,7 @@ services:
       signoz-network:
         aliases:
         - zookeeper-1
+    restart: unless-stopped
     user: root
     volumes:
     - signoz-telemetrykeeper-0-data:/bitnami/zookeeper
@@ -114,7 +111,7 @@ services:
       - -q
       - http://localhost:8123/ping
       timeout: 10s
-    image: clickhouse/clickhouse-server:25.5.6
+    image: clickhouse/clickhouse-server:25.12.5
     networks:
       signoz-network:
         aliases:
@@ -123,6 +120,7 @@ services:
     - 9000:9000
     - 8123:8123
     - 9181:9181
+    restart: unless-stopped
     volumes:
     - signoz-telemetrystore-0-0-data:/var/lib/clickhouse
     - signoz-telemetrystore-user-scripts:/var/lib/clickhouse/user_scripts:ro
@@ -142,9 +140,10 @@ services:
       tar -xvzf histogram-quantile.tar.gz
       mv histogram-quantile /var/lib/clickhouse/user_scripts/histogramQuantile
     container_name: signoz-telemetrystore-clickhouse-user-scripts
-    image: clickhouse/clickhouse-server:25.5.6
+    image: clickhouse/clickhouse-server:25.12.5
     networks:
     - signoz-network
+    restart: on-failure
     volumes:
     - signoz-telemetrystore-user-scripts:/var/lib/clickhouse/user_scripts
   signoz-telemetrystore-migrator:
@@ -168,6 +167,7 @@ services:
     image: signoz/signoz-otel-collector:v0.144.5
     networks:
     - signoz-network
+    restart: on-failure
 volumes:
   signoz-metastore-sqlite-0-data:
     name: signoz-sqlite
