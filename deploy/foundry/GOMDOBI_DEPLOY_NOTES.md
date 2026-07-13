@@ -13,9 +13,9 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/s
 
 ## 현재 배포 기준
 
-- 확인일: 2026-07-09
-- upstream 릴리즈 태그: `v0.132.0`
-- 100.203 SigNoZ 이미지: `signoz/signoz:v0.132.0`
+- 확인일: 2026-07-13
+- upstream 릴리즈 태그: `v0.132.2`
+- 100.203 SigNoZ 이미지: `signoz/signoz:v0.132.2`
 - 100.203 collector 이미지: `signoz/signoz-otel-collector:v0.144.5`
 - 100.203 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
