@@ -8,15 +8,15 @@ spec:
     mode: docker
   signoz:
     spec:
-      image: signoz/signoz:v0.132.2
-      version: v0.132.2
+      image: signoz/signoz:v0.133.0
+      version: v0.133.0
       env:
         SIGNOZ_ALERTMANAGER_PROVIDER: signoz
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
   ingester:
     spec:
-      image: signoz/signoz-otel-collector:v0.144.5
-      version: v0.144.5
+      image: signoz/signoz-otel-collector:v0.144.6
+      version: v0.144.6
       env:
         OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
         LOW_CARDINAL_EXCEPTION_GROUPING: "false"
