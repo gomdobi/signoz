@@ -7,7 +7,7 @@ import ColumnHeader from '../Base/ColumnHeader';
 import EntityGroupHeader from '../Base/EntityGroupHeader';
 import K8sGroupCell from '../Base/K8sGroupCell';
 import { SelectedItemParams } from '../hooks';
-import { formatBytes, getPodPhaseStatusItems } from '../commonUtils';
+import { formatBytes, getPodStatusItems } from '../commonUtils';
 import {
 	CellValueTooltip,
 	EntityProgressBar,
@@ -88,11 +88,7 @@ export const k8sStatefulSetsColumnsConfig: TableColumnDef<InframonitoringtypesSt
 			visibilityBehavior: 'hidden-on-expand',
 			cell: ({ value }): React.ReactNode => {
 				const statefulsetName = value as string;
-				return (
-					<CellValueTooltip value={statefulsetName}>
-						<TanStackTable.Text>{statefulsetName}</TanStackTable.Text>
-					</CellValueTooltip>
-				);
+				return <CellValueTooltip value={statefulsetName} />;
 			},
 		},
 		{
@@ -109,49 +105,48 @@ export const k8sStatefulSetsColumnsConfig: TableColumnDef<InframonitoringtypesSt
 			enableResize: true,
 			cell: ({ value }): React.ReactNode => {
 				const namespaceName = value as string;
-				return (
-					<CellValueTooltip value={namespaceName}>
-						<TanStackTable.Text>{namespaceName}</TanStackTable.Text>
-					</CellValueTooltip>
-				);
+				return <CellValueTooltip value={namespaceName} />;
 			},
 		},
 		{
-			id: 'pod_counts_by_phase',
+			id: 'pod_counts_by_status',
 			header: (): React.ReactNode => (
-				<ColumnHeader docPath="/infrastructure-monitoring/kubernetes/statefulsets#pod-counts-by-phase">
-					Pod Phases
+				<ColumnHeader docPath="/infrastructure-monitoring/kubernetes/statefulsets#pod-counts-by-status">
+					Pod Status
 				</ColumnHeader>
 			),
 			accessorFn: (
 				row,
-			): InframonitoringtypesStatefulSetRecordDTO['podCountsByPhase'] =>
-				row.podCountsByPhase,
+			): InframonitoringtypesStatefulSetRecordDTO['podCountsByStatus'] =>
+				row.podCountsByStatus,
 			width: { min: 250 },
 			enableSort: false,
 			enableResize: true,
-			cell: ({ row }): React.ReactNode => {
-				const podCountsByPhase = row.podCountsByPhase;
-				if (!podCountsByPhase) {
+			cell: ({ row, rowId }): React.ReactNode => {
+				const podCountsByStatus = row.podCountsByStatus;
+				if (!podCountsByStatus) {
 					return <TanStackTable.Text>-</TanStackTable.Text>;
 				}
 				return (
-					<GroupedStatusCounts items={getPodPhaseStatusItems(podCountsByPhase)} />
+					<GroupedStatusCounts
+						items={getPodStatusItems(podCountsByStatus)}
+						rowId={rowId}
+					/>
 				);
 			},
 		},
 		{
-			id: 'pod_status',
+			id: 'pod_replicas',
 			header: (): React.ReactNode => (
-				<ColumnHeader docPath="/infrastructure-monitoring/kubernetes/statefulsets#pod-status">
-					Pod Status
+				<ColumnHeader docPath="/infrastructure-monitoring/kubernetes/statefulsets#pod-replicas">
+					Pod Replicas
 				</ColumnHeader>
 			),
 			accessorFn: (row): number => row.currentPods,
 			width: { min: 140 },
 			enableSort: false,
 			enableResize: true,
-			cell: ({ row }): React.ReactNode => (
+			cell: ({ row, rowId }): React.ReactNode => (
 				<GroupedStatusCounts
 					items={[
 						{
@@ -165,6 +160,7 @@ export const k8sStatefulSetsColumnsConfig: TableColumnDef<InframonitoringtypesSt
 							color: Color.BG_ROBIN_500,
 						},
 					]}
+					rowId={rowId}
 				/>
 			),
 		},

@@ -570,7 +570,11 @@ def test_dashboard_v2_lifecycle(  # pylint: disable=too-many-locals,too-many-sta
     assert alpha["schemaVersion"] == "v6"
     assert alpha["source"] == "user"
     assert alpha["locked"] is False
-    assert {"key": "team", "value": "pulse"} in alpha["tags"]
+    # tags round-trip in the order sent — no reordering, no drift
+    assert alpha["tags"] == [
+        {"key": "team", "value": "pulse"},
+        {"key": "env", "value": "prod"},
+    ]
 
     # ── stage 3: list everything ─────────────────────────────────────────────
     response = requests.get(
@@ -590,6 +594,13 @@ def test_dashboard_v2_lifecycle(  # pylint: disable=too-many-locals,too-many-sta
         "Epsilon Metrics",
         "Zeta Overview",
     }
+    # per-dashboard tags also round-trip in the order sent
+    delta = next(d for d in body["data"]["dashboards"] if d["spec"]["display"]["name"] == "Delta Storage")
+    assert delta["tags"] == [
+        {"key": "team", "value": "storage"},
+        {"key": "env", "value": "dev"},
+        {"key": "tier", "value": "critical"},
+    ]
     # top-level tags = org-wide distinct tag set, sorted case-insensitively
     # by (key, value). Asserting the exact list (not a set) locks in the sort.
     assert body["data"]["tags"] == [
@@ -1011,6 +1022,99 @@ def test_dashboard_v2_lifecycle(  # pylint: disable=too-many-locals,too-many-sta
     )
     assert response.status_code == HTTPStatus.OK, response.text
     assert response.json()["data"]["id"] == clone["id"]
+
+
+def test_dashboard_v2_tag_order_round_trips(
+    signoz: SigNoz,
+    create_user_admin: Operation,  # pylint: disable=unused-argument
+    get_token: Callable[[str, str], str],
+):
+    """Tags must round-trip in the order the client sent them across every write
+    path — create, update, patch — so GitOps/Terraform state never drifts."""
+    token = get_token(USER_ADMIN_EMAIL, USER_ADMIN_PASSWORD)
+
+    def tags_of(response: requests.Response) -> list[dict]:
+        return response.json()["data"]["tags"]
+
+    # ── create with tags in a deliberate order; "env" repeats with two values ─
+    created_order = [
+        {"key": "team", "value": "pulse"},
+        {"key": "env", "value": "prod"},
+        {"key": "env", "value": "staging"},
+        {"key": "tier", "value": "critical"},
+    ]
+    response = requests.post(
+        signoz.self.host_configs["8080"].get(BASE_URL),
+        json={"schemaVersion": "v6", "name": "tag-order", "spec": {"display": {"name": "Tag Order"}}, "tags": created_order},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    dashboard_id = response.json()["data"]["id"]
+    assert tags_of(response) == created_order
+
+    # ── get echoes the same order ────────────────────────────────────────────
+    response = requests.get(
+        signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert tags_of(response) == created_order
+
+    # ── update reordered; the two "env" values land at non-adjacent positions ─
+    reordered = [
+        {"key": "tier", "value": "critical"},
+        {"key": "env", "value": "staging"},
+        {"key": "team", "value": "pulse"},
+        {"key": "env", "value": "prod"},
+    ]
+    response = requests.put(
+        signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+        json={"schemaVersion": "v6", "name": "tag-order", "spec": {"display": {"name": "Tag Order"}}, "tags": reordered},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert tags_of(response) == reordered
+
+    # ── patch appends a new tag (a third "env" value); it lands at the end ────
+    response = requests.patch(
+        signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+        json=[{"op": "add", "path": "/tags/-", "value": {"key": "env", "value": "dev"}}],
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert tags_of(response) == reordered + [{"key": "env", "value": "dev"}]
+
+    # ── update reorders everything and adds another new tag → all in the new order ─
+    # "env" now carries three interleaved values
+    new_order = [
+        {"key": "env", "value": "prod"},
+        {"key": "team", "value": "pulse"},
+        {"key": "env", "value": "dev"},
+        {"key": "tier", "value": "critical"},
+        {"key": "env", "value": "staging"},
+        {"key": "team", "value": "storage"},
+    ]
+    response = requests.put(
+        signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+        json={"schemaVersion": "v6", "name": "tag-order", "spec": {"display": {"name": "Tag Order"}}, "tags": new_order},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert tags_of(response) == new_order
+
+    # ── and the final order persists on a fresh read ─────────────────────────
+    response = requests.get(
+        signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert tags_of(response) == new_order
 
 
 def test_dashboard_v2_pin_limit(
@@ -1561,3 +1665,435 @@ def test_dashboard_v2_rejects_comma_separated_aggregation(
             headers={"Authorization": f"Bearer {token}"},
             timeout=5,
         )
+
+
+# ─── round-trip serialization of zero-valued fields ──────────────────────────
+# A minimal dashboard stripped from SigNoz/dashboards (cicd-perses.json), whose
+# NumberPanel carries a real `threshold value: 0`. It packs every field whose zero
+# value the create -> GET round-trip must preserve: thresholds with value 0 (which
+# the required-tag validation used to reject on create), builder slices set to an
+# explicit [] that must echo back as [] (yet stay absent, never null, when unset),
+# and scalars disabled/legend that must always echo false/"".
+#
+# It also covers the spec-wide zero values: a display description "", a text
+# variable's constant false, a list variable's customAllValue/capturingRegexp "",
+# an explicit [] of panel links, and a link whose own zero-valued fields
+# (name/tooltip "", renderVariables/targetBlank false) must echo back.
+
+
+def test_dashboard_v2_roundtrip_preserves_zero_values(
+    signoz: SigNoz,
+    create_user_admin: Operation,  # pylint: disable=unused-argument
+    get_token: Callable[[str, str], str],
+):
+    token = get_token(USER_ADMIN_EMAIL, USER_ADMIN_PASSWORD)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    dashboard = {
+        "schemaVersion": "v6",
+        # image (dashboard-level) and spec duration/refreshInterval/datasources
+        # each round-trip their zero value ("" / {}) rather than being dropped.
+        "image": "",
+        "name": "roundtrip-zero-values",
+        "tags": [],
+        "spec": {
+            "display": {"name": "Roundtrip Zero Values", "description": ""},
+            "duration": "",
+            "refreshInterval": "",
+            "datasources": {},
+            "variables": [
+                # TextVariable: constant false must echo back (not be dropped).
+                {"kind": "TextVariable", "spec": {"display": {"name": "tv"}, "value": "x", "constant": False, "name": "tv"}},
+                # ListVariable: customAllValue / capturingRegexp "" must echo back.
+                {
+                    "kind": "ListVariable",
+                    "spec": {
+                        "display": {"name": "lv"},
+                        "allowAllValue": False,
+                        "allowMultiple": False,
+                        "customAllValue": "",
+                        "capturingRegexp": "",
+                        "plugin": {"kind": "signoz/DynamicVariable", "spec": {"name": "service.name", "signal": "metrics"}},
+                        "name": "lv",
+                    },
+                },
+            ],
+            # Dashboard-level link with zero-valued inner fields: the replicated Link
+            # type must echo name/tooltip "" and renderVariables/targetBlank false.
+            "links": [{"url": "https://example.com", "name": "", "tooltip": "", "renderVariables": False, "targetBlank": False}],
+            "panels": {
+                # NumberPanel: ComparisonThreshold value 0 + a builder query whose
+                # zero-valued slices/scalars are all set explicitly.
+                "number": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "number"},
+                        # Explicit empty panel links must round-trip as [].
+                        "links": [],
+                        "plugin": {
+                            "kind": "signoz/NumberPanel",
+                            "spec": {"thresholds": [{"value": 0, "operator": "above_or_equal", "color": "#c2780b", "format": "background"}]},
+                        },
+                        "queries": [
+                            {
+                                "kind": "scalar",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/BuilderQuery",
+                                        "spec": {
+                                            "name": "A",
+                                            "signal": "logs",
+                                            "aggregations": [{"expression": "count()"}],
+                                            "disabled": False,
+                                            "legend": "",
+                                            "groupBy": [],
+                                            "order": [],
+                                            "selectFields": [],
+                                            "functions": [],
+                                        },
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+                # TimeSeriesPanel: ThresholdWithLabel value 0 + a bare builder query
+                # whose unset slices must be omitted (not null) on read-back.
+                "timeseries": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "timeseries"},
+                        "plugin": {
+                            "kind": "signoz/TimeSeriesPanel",
+                            "spec": {"thresholds": [{"value": 0, "color": "#c2780b"}]},
+                        },
+                        "queries": [
+                            {
+                                "kind": "time_series",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/BuilderQuery",
+                                        "spec": {"name": "A", "signal": "logs", "aggregations": [{"expression": "count()"}]},
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+                # PromQL query: legend/disabled must echo "" / false.
+                "promql": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "promql"},
+                        "plugin": {"kind": "signoz/TimeSeriesPanel", "spec": {}},
+                        "queries": [
+                            {
+                                "kind": "time_series",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/PromQLQuery",
+                                        "spec": {"name": "A", "query": "up", "disabled": False, "legend": ""},
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+                # ClickHouse query: legend/disabled must echo "" / false.
+                "clickhouse": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "clickhouse"},
+                        "plugin": {"kind": "signoz/TimeSeriesPanel", "spec": {}},
+                        "queries": [
+                            {
+                                "kind": "time_series",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/ClickHouseSQL",
+                                        "spec": {"name": "A", "query": "SELECT 1", "disabled": False, "legend": ""},
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+            },
+        },
+    }
+
+    # Create also asserts Bug 1: a threshold with value 0 is no longer rejected.
+    response = requests.post(
+        signoz.self.host_configs["8080"].get(BASE_URL),
+        json=dashboard,
+        headers=headers,
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    dashboard_id = response.json()["data"]["id"]
+
+    try:
+        response = requests.get(
+            signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+            headers=headers,
+            timeout=5,
+        )
+        assert response.status_code == HTTPStatus.OK, response.text
+        result_data = response.json()["data"]
+        result_spec = result_data["spec"]
+        panels = result_spec["panels"]
+        variables = {v["kind"]: v["spec"] for v in result_spec["variables"]}
+        link = result_spec["links"][0]
+
+        def query_spec(panel_id: str) -> dict:
+            return panels[panel_id]["spec"]["queries"][0]["spec"]["plugin"]["spec"]
+
+        def threshold(panel_id: str) -> dict:
+            return panels[panel_id]["spec"]["plugin"]["spec"]["thresholds"][0]
+
+        number = query_spec("number")
+        timeseries = query_spec("timeseries")
+        promql = query_spec("promql")
+        clickhouse = query_spec("clickhouse")
+
+        # A value the create round-trips back verbatim: (description, actual, expected).
+        roundtrip_cases = [
+            ("comparison threshold value 0", threshold("number")["value"], 0),
+            ("threshold-with-label value 0", threshold("timeseries")["value"], 0),
+            ("builder disabled false", number["disabled"], False),
+            ("builder legend empty", number["legend"], ""),
+            ("builder empty groupBy", number["groupBy"], []),
+            ("builder empty order", number["order"], []),
+            ("builder empty selectFields", number["selectFields"], []),
+            ("builder empty functions", number["functions"], []),
+            ("bare builder disabled false", timeseries["disabled"], False),
+            ("bare builder legend empty", timeseries["legend"], ""),
+            ("promql disabled false", promql["disabled"], False),
+            ("promql legend empty", promql["legend"], ""),
+            ("clickhouse disabled false", clickhouse["disabled"], False),
+            ("clickhouse legend empty", clickhouse["legend"], ""),
+            ("dashboard display description empty", result_spec["display"]["description"], ""),
+            ("text variable constant false", variables["TextVariable"]["constant"], False),
+            ("list variable customAllValue empty", variables["ListVariable"]["customAllValue"], ""),
+            ("list variable capturingRegexp empty", variables["ListVariable"]["capturingRegexp"], ""),
+            ("panel empty links round-trip", panels["number"]["spec"]["links"], []),
+            ("dashboard link name empty", link["name"], ""),
+            ("dashboard link tooltip empty", link["tooltip"], ""),
+            ("dashboard link renderVariables false", link["renderVariables"], False),
+            ("dashboard link targetBlank false", link["targetBlank"], False),
+            ("dashboard image empty", result_data["image"], ""),
+            ("spec duration empty", result_spec["duration"], ""),
+            ("spec refreshInterval empty", result_spec["refreshInterval"], ""),
+            ("spec empty datasources round-trip", result_spec["datasources"], {}),
+        ]
+        for description, actual, expected in roundtrip_cases:
+            assert actual == expected, description
+
+        # An unset slice is omitted, never serialized as null: (description, spec, key).
+        absent_cases = [
+            ("bare builder omits groupBy", timeseries, "groupBy"),
+            ("bare builder omits order", timeseries, "order"),
+            ("bare builder omits selectFields", timeseries, "selectFields"),
+            ("bare builder omits functions", timeseries, "functions"),
+        ]
+        for description, spec, key in absent_cases:
+            assert key not in spec, description
+
+        # A panel with no links comes back with no links value (null or absent);
+        # either is fine for a typed client (an unset optional attribute stays
+        # unset), so this is not a drift. The explicit [] case above is what the
+        # fix guarantees round-trips.
+        assert panels["timeseries"]["spec"].get("links") is None, "unset panel links stays unset"
+    finally:
+        requests.delete(
+            signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+            headers=headers,
+            timeout=5,
+        )
+
+
+# ─── enum defaulting: absent applies the default, explicit "" is rejected ─────
+# The v2 dashboard enums (timePreference, decimalPrecision, lineInterpolation,
+# lineStyle, fillMode, legend position/mode, comparison operator, threshold
+# format, list-variable sort) apply their default only when the field is omitted
+# entirely: UnmarshalJSON never runs, so the zero value marshals back as the
+# default. An explicit "" is validated like any other string and, since "" is
+# never an allowed enum member, rejected.
+
+
+def test_dashboard_v2_omitted_enums_apply_defaults(
+    signoz: SigNoz,
+    create_user_admin: Operation,  # pylint: disable=unused-argument
+    get_token: Callable[[str, str], str],
+):
+    token = get_token(USER_ADMIN_EMAIL, USER_ADMIN_PASSWORD)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # The TimeSeriesPanel carries an empty plugin spec (every enum omitted); the
+    # NumberPanel threshold omits operator and format. Each must read back as its
+    # default.
+    dashboard = {
+        "schemaVersion": "v6",
+        "name": f"enum-{uuid.uuid4().hex[:8]}",
+        "tags": [],
+        "spec": {
+            "display": {"name": "Enum"},
+            "panels": {
+                "ts": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "ts"},
+                        "plugin": {"kind": "signoz/TimeSeriesPanel", "spec": {}},
+                        "queries": [
+                            {
+                                "kind": "time_series",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/BuilderQuery",
+                                        "spec": {"name": "A", "signal": "logs", "aggregations": [{"expression": "count()"}]},
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+                "num": {
+                    "kind": "Panel",
+                    "spec": {
+                        "display": {"name": "num"},
+                        "plugin": {
+                            "kind": "signoz/NumberPanel",
+                            "spec": {"thresholds": [{"value": 1, "color": "#c2780b"}]},
+                        },
+                        "queries": [
+                            {
+                                "kind": "scalar",
+                                "spec": {
+                                    "plugin": {
+                                        "kind": "signoz/BuilderQuery",
+                                        "spec": {"name": "A", "signal": "logs", "aggregations": [{"expression": "count()"}]},
+                                    }
+                                },
+                            }
+                        ],
+                    },
+                },
+            },
+        },
+    }
+
+    response = requests.post(
+        signoz.self.host_configs["8080"].get(BASE_URL),
+        json=dashboard,
+        headers=headers,
+        timeout=5,
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    dashboard_id = response.json()["data"]["id"]
+
+    try:
+        response = requests.get(
+            signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+            headers=headers,
+            timeout=5,
+        )
+        assert response.status_code == HTTPStatus.OK, response.text
+        panels = response.json()["data"]["spec"]["panels"]
+        ts = panels["ts"]["spec"]["plugin"]["spec"]
+        num_threshold = panels["num"]["spec"]["plugin"]["spec"]["thresholds"][0]
+
+        default_cases = [
+            ("timePreference", ts["visualization"]["timePreference"], "global_time"),
+            ("decimalPrecision", ts["formatting"]["decimalPrecision"], "2"),
+            ("lineInterpolation", ts["chartAppearance"]["lineInterpolation"], "spline"),
+            ("lineStyle", ts["chartAppearance"]["lineStyle"], "solid"),
+            ("fillMode", ts["chartAppearance"]["fillMode"], "none"),
+            ("legend position", ts["legend"]["position"], "bottom"),
+            ("legend mode", ts["legend"]["mode"], "list"),
+            ("comparison operator", num_threshold["operator"], "above"),
+            ("threshold format", num_threshold["format"], "text"),
+        ]
+        for description, actual, expected in default_cases:
+            assert actual == expected, description
+    finally:
+        requests.delete(
+            signoz.self.host_configs["8080"].get(f"{BASE_URL}/{dashboard_id}"),
+            headers=headers,
+            timeout=5,
+        )
+
+
+# Every v2 enum shares the same UnmarshalJSON validation, so one panel enum
+# (timePreference) and the list-variable sort are enough to prove an explicit ""
+# is rejected; the rest behave identically.
+def test_dashboard_v2_rejects_explicit_empty_enum(
+    signoz: SigNoz,
+    create_user_admin: Operation,  # pylint: disable=unused-argument
+    get_token: Callable[[str, str], str],
+):
+    token = get_token(USER_ADMIN_EMAIL, USER_ADMIN_PASSWORD)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    bad_dashboards = [
+        # A panel scalar enum: timePreference set to "".
+        {
+            "schemaVersion": "v6",
+            "name": f"enum-{uuid.uuid4().hex[:8]}",
+            "tags": [],
+            "spec": {
+                "display": {"name": "Enum"},
+                "panels": {
+                    "p": {
+                        "kind": "Panel",
+                        "spec": {
+                            "display": {"name": "ts"},
+                            "plugin": {"kind": "signoz/TimeSeriesPanel", "spec": {"visualization": {"timePreference": ""}}},
+                            "queries": [
+                                {
+                                    "kind": "time_series",
+                                    "spec": {
+                                        "plugin": {
+                                            "kind": "signoz/BuilderQuery",
+                                            "spec": {"name": "A", "signal": "logs", "aggregations": [{"expression": "count()"}]},
+                                        }
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                },
+            },
+        },
+        # A variable enum: list-variable sort set to "".
+        {
+            "schemaVersion": "v6",
+            "name": f"enum-{uuid.uuid4().hex[:8]}",
+            "tags": [],
+            "spec": {
+                "display": {"name": "Enum"},
+                "variables": [
+                    {
+                        "kind": "ListVariable",
+                        "spec": {
+                            "display": {"name": "lv"},
+                            "allowAllValue": False,
+                            "allowMultiple": False,
+                            "plugin": {"kind": "signoz/DynamicVariable", "spec": {"name": "service.name", "signal": "metrics"}},
+                            "name": "lv",
+                            "sort": "",
+                        },
+                    }
+                ],
+            },
+        },
+    ]
+
+    for body in bad_dashboards:
+        response = requests.post(
+            signoz.self.host_configs["8080"].get(BASE_URL),
+            json=body,
+            headers=headers,
+            timeout=5,
+        )
+        assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
+        assert response.json()["error"]["code"] == "dashboard_invalid_input", response.text
