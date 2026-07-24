@@ -8,8 +8,8 @@ spec:
     mode: docker
   signoz:
     spec:
-      image: signoz/signoz:v0.133.0
-      version: v0.133.0
+      image: signoz/signoz:v0.134.0
+      version: v0.134.0
       env:
         SIGNOZ_ALERTMANAGER_PROVIDER: signoz
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
