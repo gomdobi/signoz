@@ -6,21 +6,20 @@
 SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main -> 100.203:/app/signoz
 ```
 
-- `100.203`: 메인 SigNoZ 서버
-- `100.204`: 외부망 collector-only 서버
+- `100.203`: 현재 확인된 내부망 SigNoZ 풀스택 서버
+- `100.204`: 외부망 독립 풀스택 예정 서버. 실제 설치 경로와 상태를 확인하기 전에는 이 절차의 배포 대상으로 취급하지 않는다.
 
 업그레이드 기준은 upstream 정식 릴리즈 태그다. `v0.130.1`부터 upstream의 legacy Docker Compose 파일은 제거되고 Foundry 기준으로 전환되었으므로, 100.203은 `deploy/foundry` 기준으로 배포한다.
 
 ## 현재 배포 기준
 
-- 확인일: 2026-07-24
-- upstream 릴리즈 태그: `v0.134.0`
-- foundryctl: `v0.2.16`
-- 100.203 SigNoZ 이미지: `signoz/signoz:v0.134.0`
+- 확인일: 2026-08-05
+- upstream 릴리즈 태그: `v0.135.1`
+- foundryctl: `v0.2.17`
+- 100.203 SigNoZ 이미지: `signoz/signoz:v0.135.1`
 - 100.203 collector 이미지: `signoz/signoz-otel-collector:v0.144.6`
 - 100.203 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
-- 100.204 collector-only 이미지: `signoz/signoz-otel-collector:v0.144.6`
 
 ## v0.131.0 ClickHouse 주의사항
 
