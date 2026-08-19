@@ -15,10 +15,10 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 ## 현재 배포 기준
 
-- 확인일: 2026-08-05
-- upstream 릴리즈 태그: `v0.135.1`
+- 확인일: 2026-08-19
+- upstream 릴리즈 태그: `v0.138.0`
 - foundryctl: `v0.2.17`
-- 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.135.1`
+- 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.138.0`
 - 100.203/100.204 collector 이미지: `signoz/signoz-otel-collector:v0.144.6`
 - 100.203/100.204 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203/100.204 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
@@ -100,6 +100,27 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
 grep -nE 'replica: example01-01-1|shard: "01"' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
+```
+
+4. `sayis-dashboard-api`에 영향을 줄 수 있는 ClickHouse 구조 변경을 확인한다.
+
+- ClickHouse, collector, telemetrystore migrator 이미지 버전을 이전 배포와 비교한다.
+- telemetry 테이블의 engine, sorting key, partition key, primary key를 비교한다.
+- View와 Materialized View의 생성 SQL을 비교한다.
+- 구조 변경이 있으면 API 주요 쿼리의 실행 계획과 응답시간을 배포 전후로 비교한다.
+
+```sql
+SELECT
+    database,
+    name,
+    engine,
+    sorting_key,
+    partition_key,
+    primary_key,
+    create_table_query
+FROM system.tables
+WHERE database LIKE 'signoz%'
+ORDER BY database, name;
 ```
 
 ## 100.203/100.204 공통 준비
