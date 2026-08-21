@@ -170,6 +170,17 @@ spec:
             macros:
               replica: "example01-01-1"
               shard: "01"
+            users:
+              sayis:
+                password: "vGamsAX69OP11Si/QJPDNMTRlhNGIWqQ98if9G4gqLBZRbXA8zn+bAU0vU3RlCEz"
+                networks:
+                  ip: "::/0"
+                profile: default
+                quota: default
+                grants:
+                  query:
+                    - "GRANT SELECT ON signoz_metrics.*"
+                    - "GRANT SELECT ON signoz_traces.*"
   patches:
     - target: "deployment/compose.yaml"
       operations:

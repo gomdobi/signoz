@@ -15,7 +15,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 ## 현재 배포 기준
 
-- 확인일: 2026-08-19
+- 확인일: 2026-08-21
 - upstream 릴리즈 태그: `v0.138.0`
 - foundryctl: `v0.2.17`
 - 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.138.0`
@@ -40,6 +40,11 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - ClickHouse macro는 기존 값과 일치해야 한다.
   - `shard: "01"`
   - `replica: "example01-01-1"`
+- ClickHouse의 `sayis` 사용자는 `sayis-dashboard-api` 전용 읽기 계정으로 유지한다.
+  - 인증 설정: `password`
+  - 권한: `GRANT SELECT ON signoz_metrics.*`
+  - 권한: `GRANT SELECT ON signoz_traces.*`
+  - 원본 암호는 프라이빗 저장소의 casting에 유지한다.
 - 기존 Docker 볼륨 이름을 그대로 사용해야 한다.
   - `signoz-clickhouse`
   - `signoz-sqlite`
@@ -99,7 +104,7 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 ```bash
 grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
-grep -nE 'replica: example01-01-1|shard: "01"' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
+grep -nE 'replica: example01-01-1|shard: "01"|sayis:|GRANT SELECT ON signoz_(metrics|traces)\.\*' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
 ```
 
 4. `sayis-dashboard-api`에 영향을 줄 수 있는 ClickHouse 구조 변경을 확인한다.
@@ -184,6 +189,8 @@ sudo docker network inspect signoz-network --format '{{range .Containers}}{{.Nam
 sudo docker inspect signoz-telemetrystore-migrator --format '{{.State.Status}} {{.State.ExitCode}}'
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SELECT count() FROM system.mutations WHERE NOT is_done"
+sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
+  clickhouse-client --query "SHOW GRANTS FOR sayis"
 ```
 
 확인 기준:
@@ -195,6 +202,7 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.
 - 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다.
 - 필수 포트와 Uptime Kuma/Prometheus collector 설정이 유지되어야 한다.
+- `sayis` 계정은 `signoz_metrics`와 `signoz_traces`에 대한 `SELECT` 권한만 가져야 한다.
 - 모든 SigNoZ 구성 요소와 연동 서비스는 `signoz-network`에서 공식 서비스명으로 통신해야 한다.
 - 기존 `signoz-net` 네트워크가 남아 있지 않아야 한다.
 
