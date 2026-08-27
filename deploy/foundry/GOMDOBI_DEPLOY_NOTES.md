@@ -18,6 +18,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - 확인일: 2026-08-27
 - upstream 릴리즈 태그: `v0.139.0`
 - foundryctl: `v0.2.17`
+- 100.203/100.204 foundryctl 경로: `/usr/local/bin/foundryctl` (`root:root`, `0755`)
 - 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.139.0`
 - 100.203/100.204 collector 이미지: `signoz/signoz-otel-collector:v0.144.6`
 - 100.203/100.204 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
@@ -135,7 +136,7 @@ ORDER BY database, name;
 ```bash
 cd /app/signoz
 sudo git pull --ff-only origin main
-sudo foundryctl forge --no-updater --no-ledger \
+sudo /usr/local/bin/foundryctl forge --no-updater --no-ledger \
   -f deploy/foundry/casting.yaml \
   -p deploy/foundry/pours
 sudo docker compose \
