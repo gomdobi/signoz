@@ -15,10 +15,10 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 ## 현재 배포 기준
 
-- 확인일: 2026-08-21
-- upstream 릴리즈 태그: `v0.138.0`
+- 확인일: 2026-08-27
+- upstream 릴리즈 태그: `v0.139.0`
 - foundryctl: `v0.2.17`
-- 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.138.0`
+- 100.203/100.204 SigNoZ 이미지: `signoz/signoz:v0.139.0`
 - 100.203/100.204 collector 이미지: `signoz/signoz-otel-collector:v0.144.6`
 - 100.203/100.204 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203/100.204 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
