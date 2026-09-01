@@ -25,11 +25,13 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - 100.203/100.204 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
 - 100.203/100.204 Docker 네트워크: `signoz-network`
 - 100.203/100.204 ClickHouse 데이터 경로: `/data/sayit-clickhouse`
+- 100.203/100.204 SQLite 데이터 경로: `/data/sayit-sqlite`
+- 100.203/100.204 ZooKeeper 데이터 경로: `/data/sayit-zookeeper`
 - 100.203/100.204 ClickHouse 컨테이너 mount: `/var/lib/clickhouse`
 - ClickHouse bind mount 반영 커밋: `b48ff8e601`
 - 서버별 롤백 Compose: `/app/signoz-runtime/compose.clickhouse-volume.rollback.yaml`
 
-2026-09-01 전환 검증에서 양쪽 서버 모두 ClickHouse v25.12.5.44, SigNoZ API `ok`, ClickHouse/SigNoZ health `healthy`, migrator 종료 코드 `0`, 완료되지 않은 mutation `0`을 확인했다. 이전 `signoz-clickhouse` Docker 볼륨은 삭제하지 않고 롤백용으로 보존했다.
+2026-09-01 전환 검증에서 양쪽 서버 모두 ClickHouse v25.12.5.44, SigNoZ API `ok`, ClickHouse/SigNoZ health `healthy`, migrator 종료 코드 `0`, 완료되지 않은 mutation `0`을 확인했다. 이후 전체 스택을 정지하고 SQLite와 ZooKeeper 데이터도 `/data`로 이전했으며, 재기동 후 SigNoZ·ZooKeeper·ClickHouse health와 migrator 종료 코드 `0`을 다시 확인했다. 이전 `signoz-clickhouse`, `signoz-sqlite`, `signoz-zookeeper-1` Docker 볼륨은 삭제하지 않고 롤백용으로 보존했다.
 
 ## Foundry 파일
 
@@ -53,14 +55,13 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
   - 권한: `GRANT SELECT ON signoz_metrics.*`
   - 권한: `GRANT SELECT ON signoz_traces.*`
   - 원본 암호는 프라이빗 저장소의 casting에 유지한다.
-- ClickHouse 데이터는 호스트 bind mount를 사용한다.
+- 영구 데이터는 호스트 bind mount를 사용한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
+  - `/data/sayit-sqlite:/var/lib/signoz`
+  - `/data/sayit-zookeeper:/bitnami/zookeeper`
   - JSON Patch의 `test`로 Foundry가 생성한 기존 mount를 먼저 검증한 뒤 `replace`한다.
   - upstream 생성 구조가 바뀌어 `test`가 실패하면 patch 경로를 임의로 우회하지 않고 생성물을 비교한다.
-- 기존 Docker 볼륨 이름을 그대로 사용해야 한다.
-  - `signoz-sqlite`
-  - `signoz-zookeeper-1`
-- 이전 `signoz-clickhouse` 볼륨은 데이터 이전 검증이 끝날 때까지 롤백용으로 보존하며 Compose에서 관리하지 않는다.
+- 이전 `signoz-clickhouse`, `signoz-sqlite`, `signoz-zookeeper-1` 볼륨은 롤백용으로 보존하며 Compose에서 관리하지 않는다.
 - Docker 네트워크는 Foundry 공식 이름인 `signoz-network`를 사용한다.
 
 ### `deploy/foundry/pours/deployment/compose.yaml`
@@ -71,8 +72,10 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
   - `9000:9000`
   - `8123:8123`
   - `9181:9181`
-- ClickHouse 데이터 mount는 아래 값을 유지해야 한다.
+- 영구 데이터 mount는 아래 값을 유지해야 한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
+  - `/data/sayit-sqlite:/var/lib/signoz`
+  - `/data/sayit-zookeeper:/bitnami/zookeeper`
 - ingester 포트는 아래 포트를 노출해야 한다.
   - `4317:4317`
   - `4318:4318`
@@ -156,6 +159,8 @@ ORDER BY database, name;
 cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 test "$(findmnt -n -o SOURCE -T /data/sayit-clickhouse)" = "/dev/mapper/vg_data-lv_data"
+test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
 sudo git pull --ff-only origin main
 sudo /usr/local/bin/foundryctl forge --no-updater --no-ledger \
   -f deploy/foundry/casting.yaml \
@@ -170,6 +175,8 @@ sudo docker compose \
 ```bash
 cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   pull
@@ -185,6 +192,8 @@ sudo docker compose \
 ```bash
 cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   -f /app/signoz-runtime/docker-compose.204.override.yaml \
@@ -213,8 +222,14 @@ sudo docker network inspect signoz-network --format '{{range .Containers}}{{.Nam
 sudo docker inspect signoz-telemetrystore-migrator --format '{{.State.Status}} {{.State.ExitCode}}'
 mountpoint -q /data
 findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-clickhouse
+findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-sqlite
+findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-zookeeper
 sudo docker inspect signoz-telemetrystore-clickhouse-0-0 \
   --format '{{range .Mounts}}{{if eq .Destination "/var/lib/clickhouse"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
+sudo docker inspect signoz-signoz-0 \
+  --format '{{range .Mounts}}{{if eq .Destination "/var/lib/signoz"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
+sudo docker inspect signoz-telemetrykeeper-zookeeper-0 \
+  --format '{{range .Mounts}}{{if eq .Destination "/bitnami/zookeeper"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SELECT count() FROM system.mutations WHERE NOT is_done"
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
@@ -227,7 +242,9 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - `signoz-signoz-0`는 healthy 상태여야 한다.
 - ClickHouse와 ZooKeeper는 healthy 상태여야 한다.
 - ClickHouse 데이터 mount는 `bind /data/sayit-clickhouse /var/lib/clickhouse`여야 한다.
-- `/data/sayit-clickhouse`는 `/dev/mapper/vg_data-lv_data`의 ext4 `/data` 아래에 있어야 한다.
+- SQLite 데이터 mount는 `bind /data/sayit-sqlite /var/lib/signoz`여야 한다.
+- ZooKeeper 데이터 mount는 `bind /data/sayit-zookeeper /bitnami/zookeeper`여야 한다.
+- 세 데이터 경로는 `/dev/mapper/vg_data-lv_data`의 ext4 `/data` 아래에 있어야 한다.
 - migrator는 `exited 0`이어야 한다.
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.
 - 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다.

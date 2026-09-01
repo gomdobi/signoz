@@ -61,7 +61,7 @@ services:
     - 8080:8080
     restart: unless-stopped
     volumes:
-    - signoz-metastore-sqlite-0-data:/var/lib/signoz
+    - /data/sayit-sqlite:/var/lib/signoz
   signoz-telemetrykeeper-zookeeper-0:
     container_name: signoz-telemetrykeeper-zookeeper-0
     environment:
@@ -95,7 +95,7 @@ services:
     restart: unless-stopped
     user: root
     volumes:
-    - signoz-telemetrykeeper-0-data:/bitnami/zookeeper
+    - /data/sayit-zookeeper:/bitnami/zookeeper
   signoz-telemetrystore-clickhouse-0-0:
     container_name: signoz-telemetrystore-clickhouse-0-0
     depends_on:
@@ -173,9 +173,5 @@ services:
     - signoz-network
     restart: on-failure
 volumes:
-  signoz-metastore-sqlite-0-data:
-    name: signoz-sqlite
-  signoz-telemetrykeeper-0-data:
-    name: signoz-zookeeper-1
   signoz-telemetrystore-user-scripts:
     name: signoz-telemetrystore-user-scripts

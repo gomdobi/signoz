@@ -196,9 +196,14 @@ spec:
             - 9000:9000
             - 8123:8123
             - 9181:9181
+        - op: test
+          path: /services/signoz-telemetrykeeper-zookeeper-0/volumes/0
+          value: signoz-telemetrykeeper-0-data:/bitnami/zookeeper
         - op: replace
-          path: /volumes/signoz-telemetrykeeper-0-data/name
-          value: signoz-zookeeper-1
+          path: /services/signoz-telemetrykeeper-zookeeper-0/volumes/0
+          value: /data/sayit-zookeeper:/bitnami/zookeeper
+        - op: remove
+          path: /volumes/signoz-telemetrykeeper-0-data
         - op: test
           path: /services/signoz-telemetrystore-clickhouse-0-0/volumes/0
           value: signoz-telemetrystore-0-0-data:/var/lib/clickhouse
@@ -207,9 +212,14 @@ spec:
           value: /data/sayit-clickhouse:/var/lib/clickhouse
         - op: remove
           path: /volumes/signoz-telemetrystore-0-0-data
+        - op: test
+          path: /services/signoz-signoz-0/volumes/0
+          value: signoz-metastore-sqlite-0-data:/var/lib/signoz
         - op: replace
-          path: /volumes/signoz-metastore-sqlite-0-data/name
-          value: signoz-sqlite
+          path: /services/signoz-signoz-0/volumes/0
+          value: /data/sayit-sqlite:/var/lib/signoz
+        - op: remove
+          path: /volumes/signoz-metastore-sqlite-0-data
         - op: add
           path: /services/signoz-telemetrykeeper-zookeeper-0/user
           value: root
