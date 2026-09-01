@@ -46,10 +46,12 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
   - 권한: `GRANT SELECT ON signoz_metrics.*`
   - 권한: `GRANT SELECT ON signoz_traces.*`
   - 원본 암호는 프라이빗 저장소의 casting에 유지한다.
+- ClickHouse 데이터는 호스트 bind mount를 사용한다.
+  - `/data/sayit-clickhouse:/var/lib/clickhouse`
 - 기존 Docker 볼륨 이름을 그대로 사용해야 한다.
-  - `signoz-clickhouse`
   - `signoz-sqlite`
   - `signoz-zookeeper-1`
+- 이전 `signoz-clickhouse` 볼륨은 데이터 이전 검증이 끝날 때까지 롤백용으로 보존하며 Compose에서 관리하지 않는다.
 - Docker 네트워크는 Foundry 공식 이름인 `signoz-network`를 사용한다.
 
 ### `deploy/foundry/pours/deployment/compose.yaml`
@@ -60,6 +62,8 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
   - `9000:9000`
   - `8123:8123`
   - `9181:9181`
+- ClickHouse 데이터 mount는 아래 값을 유지해야 한다.
+  - `/data/sayit-clickhouse:/var/lib/clickhouse`
 - ingester 포트는 아래 포트를 노출해야 한다.
   - `4317:4317`
   - `4318:4318`
@@ -103,7 +107,7 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 3. 커스텀 유지 여부를 확인한다.
 
 ```bash
-grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key' deploy/foundry/pours/deployment/compose.yaml
+grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
 grep -nE 'replica: example01-01-1|shard: "01"|sayis:|GRANT SELECT ON signoz_(metrics|traces)\.\*' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
 ```
@@ -188,6 +192,9 @@ curl -fsS http://127.0.0.1:8080/api/v1/version
 sudo docker ps --format '{{.Names}} {{.Image}} {{.Status}}' | grep -E 'signoz|clickhouse|zookeeper|ingester'
 sudo docker network inspect signoz-network --format '{{range .Containers}}{{.Name}} {{end}}'
 sudo docker inspect signoz-telemetrystore-migrator --format '{{.State.Status}} {{.State.ExitCode}}'
+mountpoint -q /data
+sudo docker inspect signoz-telemetrystore-clickhouse-0-0 \
+  --format '{{range .Mounts}}{{if eq .Destination "/var/lib/clickhouse"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SELECT count() FROM system.mutations WHERE NOT is_done"
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
@@ -199,6 +206,7 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - API 버전이 대상 SigNoZ 버전과 일치해야 한다.
 - `signoz-signoz-0`는 healthy 상태여야 한다.
 - ClickHouse와 ZooKeeper는 healthy 상태여야 한다.
+- ClickHouse 데이터 mount는 `bind /data/sayit-clickhouse /var/lib/clickhouse`여야 한다.
 - migrator는 `exited 0`이어야 한다.
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.
 - 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다.

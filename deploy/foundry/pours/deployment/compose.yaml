@@ -126,7 +126,7 @@ services:
     - 9181:9181
     restart: unless-stopped
     volumes:
-    - signoz-telemetrystore-0-0-data:/var/lib/clickhouse
+    - /data/sayit-clickhouse:/var/lib/clickhouse
     - signoz-telemetrystore-user-scripts:/var/lib/clickhouse/user_scripts:ro
     - ./telemetrystore/clickhouse/config-0-0.yaml:/etc/clickhouse-server/config-0-0.yaml:ro
     - ./telemetrystore/clickhouse/functions.yaml:/etc/clickhouse-server/functions.yaml:ro
@@ -177,7 +177,5 @@ volumes:
     name: signoz-sqlite
   signoz-telemetrykeeper-0-data:
     name: signoz-zookeeper-1
-  signoz-telemetrystore-0-0-data:
-    name: signoz-clickhouse
   signoz-telemetrystore-user-scripts:
     name: signoz-telemetrystore-user-scripts
