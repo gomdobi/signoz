@@ -15,7 +15,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 ## 현재 배포 기준
 
-- 확인일: 2026-08-27
+- 확인일: 2026-09-01
 - upstream 릴리즈 태그: `v0.139.0`
 - foundryctl: `v0.2.17`
 - 100.203/100.204 foundryctl 경로: `/usr/local/bin/foundryctl` (`root:root`, `0755`)
@@ -24,6 +24,12 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - 100.203/100.204 ClickHouse 이미지: `clickhouse/clickhouse-server:25.12.5`
 - 100.203/100.204 ZooKeeper 이미지: `signoz/zookeeper:3.7.1`
 - 100.203/100.204 Docker 네트워크: `signoz-network`
+- 100.203/100.204 ClickHouse 데이터 경로: `/data/sayit-clickhouse`
+- 100.203/100.204 ClickHouse 컨테이너 mount: `/var/lib/clickhouse`
+- ClickHouse bind mount 반영 커밋: `b48ff8e601`
+- 서버별 롤백 Compose: `/app/signoz-runtime/compose.clickhouse-volume.rollback.yaml`
+
+2026-09-01 전환 검증에서 양쪽 서버 모두 ClickHouse v25.12.5.44, SigNoZ API `ok`, ClickHouse/SigNoZ health `healthy`, migrator 종료 코드 `0`, 완료되지 않은 mutation `0`을 확인했다. 이전 `signoz-clickhouse` Docker 볼륨은 삭제하지 않고 롤백용으로 보존했다.
 
 ## Foundry 파일
 
@@ -31,6 +37,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - generated compose: `deploy/foundry/pours/deployment/compose.yaml`
 - ingester config: `deploy/foundry/pours/deployment/ingester/ingester.yaml`
 - ClickHouse config: `deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml`
+- ClickHouse 저장소 운영 절차: `deploy/foundry/CLICKHOUSE_DATA_STORAGE_RUNBOOK.md`
 
 ## 반드시 유지할 커스텀
 
@@ -48,6 +55,8 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
   - 원본 암호는 프라이빗 저장소의 casting에 유지한다.
 - ClickHouse 데이터는 호스트 bind mount를 사용한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
+  - JSON Patch의 `test`로 Foundry가 생성한 기존 mount를 먼저 검증한 뒤 `replace`한다.
+  - upstream 생성 구조가 바뀌어 `test`가 실패하면 patch 경로를 임의로 우회하지 않고 생성물을 비교한다.
 - 기존 Docker 볼륨 이름을 그대로 사용해야 한다.
   - `signoz-sqlite`
   - `signoz-zookeeper-1`
@@ -104,12 +113,16 @@ foundryctl forge --no-updater --no-ledger -f deploy/foundry/casting.yaml -p depl
 docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 ```
 
+`foundryctl forge`가 실패하면 기존 `pours`를 배포하지 않는다. 특히 ClickHouse mount의 JSON Patch `test` 실패는 upstream 생성 구조가 달라졌다는 의미이므로 `casting.yaml`과 새 생성물을 먼저 비교한다.
+
 3. 커스텀 유지 여부를 확인한다.
 
 ```bash
 grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
 grep -nE 'replica: example01-01-1|shard: "01"|sayis:|GRANT SELECT ON signoz_(metrics|traces)\.\*' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
+test "$(grep -Fc '/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml)" -eq 1
+! grep -qE 'signoz-clickhouse|signoz-telemetrystore-0-0-data:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
 ```
 
 4. `sayis-dashboard-api`에 영향을 줄 수 있는 ClickHouse 구조 변경을 확인한다.
@@ -137,8 +150,12 @@ ORDER BY database, name;
 
 양쪽 서버 모두 `/app/signoz`를 `origin/main`과 일치시킨 뒤 공식 Foundry 산출물을 생성하고 검증한다.
 
+`/data`가 실제 LVM 파일시스템으로 mount되지 않은 상태에서 Compose를 기동하면 안 된다. Docker가 호스트 루트 파일시스템에 같은 경로를 만들 수 있으므로 `findmnt` 결과를 먼저 고정 검증한다.
+
 ```bash
 cd /app/signoz
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
+test "$(findmnt -n -o SOURCE -T /data/sayit-clickhouse)" = "/dev/mapper/vg_data-lv_data"
 sudo git pull --ff-only origin main
 sudo /usr/local/bin/foundryctl forge --no-updater --no-ledger \
   -f deploy/foundry/casting.yaml \
@@ -152,6 +169,7 @@ sudo docker compose \
 
 ```bash
 cd /app/signoz
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   pull
@@ -166,6 +184,7 @@ sudo docker compose \
 
 ```bash
 cd /app/signoz
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   -f /app/signoz-runtime/docker-compose.204.override.yaml \
@@ -193,6 +212,7 @@ sudo docker ps --format '{{.Names}} {{.Image}} {{.Status}}' | grep -E 'signoz|cl
 sudo docker network inspect signoz-network --format '{{range .Containers}}{{.Name}} {{end}}'
 sudo docker inspect signoz-telemetrystore-migrator --format '{{.State.Status}} {{.State.ExitCode}}'
 mountpoint -q /data
+findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-clickhouse
 sudo docker inspect signoz-telemetrystore-clickhouse-0-0 \
   --format '{{range .Mounts}}{{if eq .Destination "/var/lib/clickhouse"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
@@ -207,6 +227,7 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - `signoz-signoz-0`는 healthy 상태여야 한다.
 - ClickHouse와 ZooKeeper는 healthy 상태여야 한다.
 - ClickHouse 데이터 mount는 `bind /data/sayit-clickhouse /var/lib/clickhouse`여야 한다.
+- `/data/sayit-clickhouse`는 `/dev/mapper/vg_data-lv_data`의 ext4 `/data` 아래에 있어야 한다.
 - migrator는 `exited 0`이어야 한다.
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.
 - 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다.
@@ -223,3 +244,6 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - 내부망과 외부망 사이에 OTLP 또는 ClickHouse 직접 연결을 구성하지 않는다.
 - 로컬 커스텀과 양쪽 서버의 실행 상태를 확인하기 전에는 업그레이드 완료로 보지 않는다.
 - 100.203과 100.204의 compose 변경, image pull, restart는 배포 작업으로 취급한다.
+- 정상 업그레이드에서는 ClickHouse 데이터를 다시 rsync하지 않는다. bind mount 유지와 `/data` mount 상태만 검증한다.
+- 기존 named volume에서의 데이터 이전과 롤백은 `CLICKHOUSE_DATA_STORAGE_RUNBOOK.md` 절차를 따른다. 다른 저장소로 재이전할 때는 현재 bind mount를 새 원본으로 확인해 별도 계획을 세운다.
+- ClickHouse 데이터 작업에서 `docker compose down -v`, `docker volume rm signoz-clickhouse`, 원본·대상 경로를 확인하지 않은 `rsync --delete`를 실행하지 않는다.
