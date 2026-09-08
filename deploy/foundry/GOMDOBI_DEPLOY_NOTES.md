@@ -13,7 +13,23 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 업그레이드 기준은 upstream 정식 릴리즈 태그다. `v0.130.1`부터 upstream의 legacy Docker Compose 파일은 제거되고 Foundry 기준으로 전환되었으므로, 양쪽 서버 모두 `deploy/foundry` 기준으로 배포한다.
 
-## 현재 배포 기준
+## 2026-09-08 100.203 업그레이드
+
+- 작업 대상은 `100.203`만이며, `100.204`는 접속·변경하지 않았다. 아래 공통 기준은 2026-09-01에 확인한 이력이다.
+- SigNoZ: `v0.139.0` → `v0.140.0`
+- Collector / telemetrystore migrator: `v0.144.6` → `v0.144.9`
+- ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다. ClickHouse와 ZooKeeper는 기존 컨테이너를 재시작하지 않았다.
+- `codex/upgrade-signoz-v0.140.0` 작업 브랜치의 casting으로 공식 `foundryctl forge --no-updater --no-ledger`를 실행했다. `main` 병합과 204 배포는 수행하지 않았다.
+- 기존 ingester와 SigNoZ를 정지하고 SQLite를 복사한 뒤, migrator를 실행하여 종료 코드 `0`을 확인하고 새 ingester와 SigNoZ를 기동했다.
+- 변경 전 Foundry 파일·Compose·스키마와 정지 상태의 SQLite 보관 경로: `/app/signoz-runtime/upgrade-v0.140.0-8aMLnrmT` (root 전용). ClickHouse 전체 데이터 백업은 아니다.
+- ClickHouse 로그 마이그레이션 `2001`, `2002`와 트레이스 마이그레이션 `1014`가 `finished`이며, SQLite 마이그레이션 `118`, `119`도 반영됐다.
+- 기존 ClickHouse 테이블 133개의 engine/sorting/partition/primary key와 View 생성 SQL은 동일하다. `signoz_metadata.field_keys`와 `distributed_field_keys`가 추가됐고, 로그·트레이스 테이블 4개의 DDL은 새 컬럼·인덱스·설정 추가로 변경됐다. 삭제된 테이블은 없다.
+- SigNoZ API 버전 `v0.140.0`, API health `ok`, SigNoZ·ClickHouse·ZooKeeper Docker health `healthy`, Collector health `Server available`을 확인했다.
+- 실제 로그·트레이스·메트릭의 신규 적재와 로그·트레이스의 `inserted_at`/`created_at` 기록을 확인했다. Collector 전송 실패·수신 거부 지표 13개는 모두 `0`이고, 확인 시점 최근 5분의 SigNoZ·Collector ERROR 로그는 `0`건이었다.
+- SQLite `quick_check`는 `ok`이고 기존 대시보드 13개가 모두 유지됐다. 신규 시스템 대시보드 1개가 추가되어 전체 대시보드는 14개다.
+- `/data/sayit-clickhouse`, `/data/sayit-sqlite`, `/data/sayit-zookeeper` bind mount와 네트워크·포트·ingester/OpAMP/ClickHouse 설정은 유지했다. `sayis`의 metrics/traces SELECT 권한도 동일하다. JSON body 기능은 새로 활성화하지 않았다.
+
+## 2026-09-01 양쪽 서버 공통 배포 기준
 
 - 확인일: 2026-09-01
 - upstream 릴리즈 태그: `v0.139.0`
