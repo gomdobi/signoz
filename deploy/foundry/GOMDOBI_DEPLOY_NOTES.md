@@ -13,13 +13,28 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 업그레이드 기준은 upstream 정식 릴리즈 태그다. `v0.130.1`부터 upstream의 legacy Docker Compose 파일은 제거되고 Foundry 기준으로 전환되었으므로, 양쪽 서버 모두 `deploy/foundry` 기준으로 배포한다.
 
-## 2026-09-08 100.203 업그레이드
+## 2026-09-08 100.204 추가 배포
 
-- 작업 대상은 `100.203`만이며, `100.204`는 접속·변경하지 않았다. 아래 공통 기준은 2026-09-01에 확인한 이력이다.
+- 203 배포 후 사용자의 추가 승인으로 204에도 SigNoZ `v0.140.0`, Collector / migrator `v0.144.9`를 적용했다. 두 서버의 이미지 RepoDigest와 amd64 RootFS 레이어가 동일하다.
+- 204의 `/app/signoz`는 작업 브랜치 `codex/upgrade-signoz-v0.140.0`의 커밋 `1171a6dc3c`에서 공식 Foundry 산출물을 재생성하여 배포했다. 기존 미커밋 SQLite·ZooKeeper bind mount 변경은 서버 Git stash와 아래 보관 디렉토리의 patch로 보존했다.
+- 204 전용 `/app/signoz-runtime/docker-compose.204.override.yaml`은 변경 전후 바이트 단위로 동일하다. 해당 파일에는 인증값이 있으므로 내용을 출력하지 않고 hash·비교 결과로 검증한다.
+- 변경 전 Foundry 파일·override·Compose·스키마 및 정지 상태의 SQLite 보관 경로: `/app/signoz-runtime/upgrade-v0.140.0-MfHPCQNv` (root 전용). ClickHouse 전체 데이터 백업은 아니다.
+- 기존 SigNoZ·Collector를 정지하고 SQLite를 복사한 뒤 migrator를 실행했다. migrator 종료 코드 `0`, 로그 `2001`/`2002` 및 트레이스 `1014` 상태 `finished`, SQLite `118`/`119` 적용을 확인했다.
+- SigNoZ API 버전 `v0.140.0`, API health `ok`, Collector health `Server available`을 확인했다. SigNoZ·Collector restart count는 `0`이다.
+- 실제 신규 메트릭·트레이스 적재와 트레이스의 `inserted_at`/`created_at` 기록을 확인했다. 확인 당시 Collector 전송 실패·수신 거부 지표 9개가 모두 `0`이었다. 최근 5분 로그 유입은 `0`건이므로 새 로그의 실적재는 미확인이다.
+- 기존 ClickHouse 테이블 133개의 엔진·키와 View 정의는 유지됐고 메타데이터 테이블 2개가 추가됐다. 삭제된 테이블과 미완료 mutation은 `0`이다.
+- SQLite `quick_check`는 `ok`, organization은 기존 1개가 유지됐다. dashboard는 기존 0개에서 신규 시스템 대시보드 1개로 변경됐다.
+- ClickHouse·ZooKeeper는 기존 컨테이너 ID와 시작 시각을 유지하며 healthy다. `/data`의 세 bind mount와 ingester/OpAMP/ClickHouse 설정 hash, `sayis`의 metrics/traces SELECT 권한을 유지했다. JSON body 기능은 활성화하지 않았다.
+- 기동 중 OpAMP 연결 재시도는 이후 연결 성공으로 회복됐다. SigNoZ 기동 시 active-query 로그 디렉토리 생성 및 license 조회 ERROR가 각각 1건 있었고, 후속 확인 시 두 서비스의 최근 2분 ERROR는 `0`건이었다. 해당 설정을 임의 변경하지 않았다.
+- 별도 기존 문제: ClickHouse 복제 대기열에 2026-08-18 생성된 `GET_PART` 6건이 `NO_REPLICA_HAS_PART`로 남아 있다. 대상은 metrics의 `metadata`, `samples_v4`, `samples_v4_agg_30m`, `samples_v4_agg_5m`과 traces의 `tag_attributes_v2`, `top_level_operations`다. readonly/session-expired replica는 `0`이며 신규 적재는 동작한다. 이번 작업에서 대기열 삭제·데이터 복구는 수행하지 않았다.
+
+## 2026-09-08 100.203 최초 배포 이력
+
+- 최초 배포 단계의 작업 대상은 `100.203`만이며, 당시 `100.204`는 접속·변경하지 않았다. 이후 204 추가 배포는 위 항목을 따른다. 아래 공통 기준은 2026-09-01에 확인한 이력이다.
 - SigNoZ: `v0.139.0` → `v0.140.0`
 - Collector / telemetrystore migrator: `v0.144.6` → `v0.144.9`
 - ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다. ClickHouse와 ZooKeeper는 기존 컨테이너를 재시작하지 않았다.
-- `codex/upgrade-signoz-v0.140.0` 작업 브랜치의 casting으로 공식 `foundryctl forge --no-updater --no-ledger`를 실행했다. `main` 병합과 204 배포는 수행하지 않았다.
+- `codex/upgrade-signoz-v0.140.0` 작업 브랜치의 casting으로 공식 `foundryctl forge --no-updater --no-ledger`를 실행했다. 최초 배포 단계에서는 `main` 병합과 204 배포를 수행하지 않았다.
 - 기존 ingester와 SigNoZ를 정지하고 SQLite를 복사한 뒤, migrator를 실행하여 종료 코드 `0`을 확인하고 새 ingester와 SigNoZ를 기동했다.
 - 변경 전 Foundry 파일·Compose·스키마와 정지 상태의 SQLite 보관 경로: `/app/signoz-runtime/upgrade-v0.140.0-8aMLnrmT` (root 전용). ClickHouse 전체 데이터 백업은 아니다.
 - ClickHouse 로그 마이그레이션 `2001`, `2002`와 트레이스 마이그레이션 `1014`가 `finished`이며, SQLite 마이그레이션 `118`, `119`도 반영됐다.
