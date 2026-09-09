@@ -13,6 +13,43 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 업그레이드 기준은 upstream 정식 릴리즈 태그다. `v0.130.1`부터 upstream의 legacy Docker Compose 파일은 제거되고 Foundry 기준으로 전환되었으므로, 양쪽 서버 모두 `deploy/foundry` 기준으로 배포한다.
 
+## 최종 확인 요약
+
+- 2026-09-08 배포 검증 기준: 203·204 모두 SigNoZ `v0.140.0`, Collector / migrator `v0.144.9`다. ClickHouse `25.12.5`(실행 버전 `25.12.5.44`), ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
+- 업그레이드 설정과 양쪽 서버 배포 기록은 `main`의 `a72387f076`까지 반영됐다. 이 커밋에 아래 복제 오류 정리·보관본 삭제 기록까지 포함됐다는 의미는 아니다.
+- 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
+- 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-09-09 100.204 정리 작업 보관본 삭제
+
+- 사용자 지시: 이번 유실 데이터는 복구하지 않으며 정리 작업 보관본도 보관하지 않는다.
+- 삭제 대상: `/data/signoz-replication-cleanup-204-20260908.ktQtKNHk` 전체 107MB. 기존 분리 파트, 작업 전 정상 파트 복사본, 전후 비교 파일과 작업 로그가 들어 있던 경로다.
+- 삭제 전 실제 경로·디렉토리 내용·별도 mount 여부와 ClickHouse의 현재 bind mount를 확인했다. 삭제 명령 종료 코드 `0`, 대상 경로 부재, SigNoZ API health `ok`를 확인했다. 해당 보관본을 통한 복구는 불가능하다.
+- 현재 데이터 `/data/sayit-clickhouse`, SQLite·ZooKeeper 데이터, 203은 변경하지 않았다. 이전 업그레이드 보관 디렉토리와 Docker named volume은 이번 삭제 대상이 아니며, 현재 잔존 여부를 재조회한 것은 아니다.
+
+## 2026-09-08 100.204 복제 오류 정리 완료
+
+목적은 유실된 과거 파트 복구가 아니라 `NO_REPLICA_HAS_PART` 반복 재시도 종료다. 대상은 204의 아래 6개 파티션으로 한정했다. 203은 작업하지 않았다.
+
+| 테이블 | partition ID | 재등록 전후 유지된 행 수 |
+| --- | --- | ---: |
+| `signoz_metrics.metadata` | `20260818` | 15,552 |
+| `signoz_metrics.samples_v4` | `20260818` | 9,095,323 |
+| `signoz_metrics.samples_v4_agg_30m` | `20260818` | 173,117 |
+| `signoz_metrics.samples_v4_agg_5m` | `20260818` | 973,694 |
+| `signoz_traces.tag_attributes_v2` | `20260818` | 978 |
+| `signoz_traces.top_level_operations` | `all` | 127 |
+| 합계 | 대상 6개 파티션 | 10,258,791 |
+
+- 당시 각 테이블의 replica는 1개였고 readonly/session-expired는 `0`이었다. 정상 데이터가 남아 있는 파티션이므로 파티션 전체 삭제를 선택하지 않았다. `top_level_operations`의 `all`은 해당 테이블 전체 데이터 범위다.
+- SigNoZ와 ingester를 정지하고 대상 테이블의 merges를 일시 정지했다. 정상 파트 복사본과 기존 detached 항목을 분리한 뒤 파티션별 `DETACH → ATTACH`를 수행했다. ZooKeeper 노드·`GET_PART` 대기열 직접 삭제, 누락 파트 복원은 하지 않았다.
+- 쓰기·merges가 정지된 상태에서 대상 파티션별 총 행 수와 `rows > 0`인 파트의 `(rows, bytes_on_disk, hash_of_all_files)` 목록이 전후 일치했다. `CHECK TABLE`은 6개 모두 `1`이었다. 합계는 남아 있던 정상 데이터의 검증값이며, 과거 유실량이나 중단 구간의 수집 누락량을 뜻하지 않는다.
+- 중간 검증 스크립트가 `CHECK TABLE` 상세 출력(파트별 행)을 단일 값 `1`로 가정하는 버그로 중단됐다. `check_query_single_value_result=1`을 명시해 이어서 검증했다. 서버 기록상 정지 요청은 17:45:05, 서비스 재시작은 19:58:35–36, Collector ready는 19:58:50(KST)였다. 단시간 중단으로 기록하지 않는다. 이 구간의 실제 수집 누락량은 미확인이다.
+- merges와 기존 서비스를 재개했다. ClickHouse·ZooKeeper 컨테이너 ID/시작 시각과 204 override hash는 유지됐다. 배포 설정은 변경하지 않았다.
+- 20:00:44(KST) 최종 조회: 전체 복제 대기열 `0`, 대기열 오류 `0`, readonly/session-expired replica `0`, 최대 복제 지연 `0`. 재시작 이후 `NO_REPLICA_HAS_PART` 반복 로그도 `0`이었다. 이는 해당 관찰 구간의 결과이며 향후 재발이 없다는 보장은 아니다.
+- 최종 최근 2분 적재: `system.cpu.time` 288건, `system.memory.usage` 168건, `system.network.io` 184건, 트레이스 30건. SigNoZ API `ok`, Collector `Server available`을 확인했다. 로그·메트릭·트레이스 유입은 구분해서 판정한다.
+- 당시 만든 보관본은 위 2026-09-09 삭제 이력대로 제거됐다. 재사용 가능한 백업 경로로 안내하지 않는다. 재발 시의 확인·판정 기준은 [저장소 운영 런북](CLICKHOUSE_DATA_STORAGE_RUNBOOK.md)을 따른다.
+
 ## 2026-09-08 100.204 추가 배포
 
 - 203 배포 후 사용자의 추가 승인으로 204에도 SigNoZ `v0.140.0`, Collector / migrator `v0.144.9`를 적용했다. 두 서버의 이미지 RepoDigest와 amd64 RootFS 레이어가 동일하다.
@@ -26,7 +63,7 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - SQLite `quick_check`는 `ok`, organization은 기존 1개가 유지됐다. dashboard는 기존 0개에서 신규 시스템 대시보드 1개로 변경됐다.
 - ClickHouse·ZooKeeper는 기존 컨테이너 ID와 시작 시각을 유지하며 healthy다. `/data`의 세 bind mount와 ingester/OpAMP/ClickHouse 설정 hash, `sayis`의 metrics/traces SELECT 권한을 유지했다. JSON body 기능은 활성화하지 않았다.
 - 기동 중 OpAMP 연결 재시도는 이후 연결 성공으로 회복됐다. SigNoZ 기동 시 active-query 로그 디렉토리 생성 및 license 조회 ERROR가 각각 1건 있었고, 후속 확인 시 두 서비스의 최근 2분 ERROR는 `0`건이었다. 해당 설정을 임의 변경하지 않았다.
-- 별도 기존 문제: ClickHouse 복제 대기열에 2026-08-18 생성된 `GET_PART` 6건이 `NO_REPLICA_HAS_PART`로 남아 있다. 대상은 metrics의 `metadata`, `samples_v4`, `samples_v4_agg_30m`, `samples_v4_agg_5m`과 traces의 `tag_attributes_v2`, `top_level_operations`다. readonly/session-expired replica는 `0`이며 신규 적재는 동작한다. 이번 작업에서 대기열 삭제·데이터 복구는 수행하지 않았다.
+- 배포 직후 발견한 기존 문제: 2026-08-18 생성된 `GET_PART` 6건이 `NO_REPLICA_HAS_PART`로 남아 있었다. 업그레이드 단계에서는 변경하지 않았고, 이후 별도 승인으로 위 복제 오류 정리를 완료했다. 현재 미처리 항목으로 해석하지 않는다.
 
 ## 2026-09-08 100.203 최초 배포 이력
 
@@ -44,7 +81,9 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - SQLite `quick_check`는 `ok`이고 기존 대시보드 13개가 모두 유지됐다. 신규 시스템 대시보드 1개가 추가되어 전체 대시보드는 14개다.
 - `/data/sayit-clickhouse`, `/data/sayit-sqlite`, `/data/sayit-zookeeper` bind mount와 네트워크·포트·ingester/OpAMP/ClickHouse 설정은 유지했다. `sayis`의 metrics/traces SELECT 권한도 동일하다. JSON body 기능은 새로 활성화하지 않았다.
 
-## 2026-09-01 양쪽 서버 공통 배포 기준
+## 2026-09-01 양쪽 서버 공통 배포 기준 이력
+
+이 절의 이미지 버전·사용 상태는 9월 1일 이력이다. 이후 배포 버전은 문서 상단의 최종 확인 요약과 `casting.yaml`을 기준으로 확인한다.
 
 - 확인일: 2026-09-01
 - upstream 릴리즈 태그: `v0.139.0`
@@ -131,16 +170,26 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 - `service.pipelines.metrics.exporters`에 `prometheus`가 있어야 한다.
 - `service.pipelines.metrics/prometheus.exporters`에 `prometheus`가 있어야 한다.
 
-## 업그레이드 확인 순서
+## 업그레이드 조회와 승인 후 준비
 
-1. upstream 정식 릴리즈 태그를 먼저 확인한다.
+### 조회 단계 — 배포하지 않음
+
+`gomdobi/signoz`의 `origin/main:deploy/foundry/casting.yaml` 버전과 upstream 최신 정식 릴리즈를 먼저 비교한다. RC·개발 브랜치는 대상에서 제외한다. 업그레이드 대상이면 공식 릴리즈 노트에서 Collector·migrator·ClickHouse·ZooKeeper·Foundry 변경을 우선 확인한다. 단순 조회 지시를 서버 접속, 파일 재생성, 배포나 `main` 병합 승인으로 확대하지 않는다.
 
 ```bash
-git fetch upstream --tags
-git ls-remote --tags --sort='version:refname' upstream 'refs/tags/v*' | grep -v '\^{}' | tail
+git fetch origin main
+git show origin/main:deploy/foundry/casting.yaml | grep -nE 'image: (signoz/signoz:|signoz/signoz-otel-collector:)'
+git ls-remote --tags --sort='version:refname' upstream 'refs/tags/v*' \
+  | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | tail -n 1
 ```
 
-2. Foundry casting을 생성하고 산출물을 검증한다.
+태그 조회값은 후보 확인용이다. [SigNoZ 공식 Releases](https://github.com/SigNoz/signoz/releases)에서 실제 정식 발행 여부와 릴리즈 노트를 확인한 뒤 업그레이드 대상으로 보고한다.
+
+### 승인 후 준비
+
+대상 서버와 변경 범위를 승인받은 뒤 아래 준비를 진행한다. 203 승인을 204 승인으로 해석하지 않는다. 저장소 `main` 반영도 별도 명시적 지시를 따른다.
+
+1. 전용 작업 브랜치에서 `casting.yaml`을 수정하고 Foundry 산출물을 생성·검증한다.
 
 ```bash
 foundryctl forge --no-updater --no-ledger -f deploy/foundry/casting.yaml -p deploy/foundry/pours
@@ -149,7 +198,7 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 
 `foundryctl forge`가 실패하면 기존 `pours`를 배포하지 않는다. 특히 ClickHouse mount의 JSON Patch `test` 실패는 upstream 생성 구조가 달라졌다는 의미이므로 `casting.yaml`과 새 생성물을 먼저 비교한다.
 
-3. 커스텀 유지 여부를 확인한다.
+2. 커스텀 유지 여부를 확인한다.
 
 ```bash
 grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
@@ -159,7 +208,7 @@ test "$(grep -Fc '/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pou
 ! grep -qE 'signoz-clickhouse|signoz-telemetrystore-0-0-data:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
 ```
 
-4. `sayis-dashboard-api`에 영향을 줄 수 있는 ClickHouse 구조 변경을 확인한다.
+3. `sayis-dashboard-api`에 영향을 줄 수 있는 ClickHouse 구조 변경을 확인한다.
 
 - ClickHouse, collector, telemetrystore migrator 이미지 버전을 이전 배포와 비교한다.
 - telemetry 테이블의 engine, sorting key, partition key, primary key를 비교한다.
@@ -182,7 +231,9 @@ ORDER BY database, name;
 
 ## 100.203/100.204 공통 준비
 
-양쪽 서버 모두 `/app/signoz`를 `origin/main`과 일치시킨 뒤 공식 Foundry 산출물을 생성하고 검증한다.
+승인된 대상 서버의 `/app/signoz`를 승인된 배포 커밋과 일치시킨 뒤 공식 Foundry 산출물을 생성하고 검증한다. 실제 2026-09-08 배포는 작업 브랜치의 `1171a6dc3c`를 사용했다. `git pull origin main`만으로 현재 브랜치가 `main`으로 바뀌는 것은 아니므로, 현재 브랜치·미커밋 변경·승인 커밋을 먼저 확인한다. 코드 동기화는 이 확인 후 승인 범위에서 수행하며, 아래 예시는 동기화 완료 후 검증·생성 단계다.
+
+SSH는 `~/.ssh/config`와 Include 대상에서 별칭을 확인하고 `ssh -G net100-203` 또는 `ssh -G net100-204`의 실제 적용값을 검증한 뒤 사용한다. 서버 Docker 제어는 `gomdobi`의 승인된 sudo 경로를 사용하며 Docker 그룹·소켓 권한을 변경하지 않는다.
 
 `/data`가 실제 LVM 파일시스템으로 mount되지 않은 상태에서 Compose를 기동하면 안 된다. Docker가 호스트 루트 파일시스템에 같은 경로를 만들 수 있으므로 `findmnt` 결과를 먼저 고정 검증한다.
 
@@ -192,7 +243,8 @@ test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 test "$(findmnt -n -o SOURCE -T /data/sayit-clickhouse)" = "/dev/mapper/vg_data-lv_data"
 test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
 test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
-sudo git pull --ff-only origin main
+sudo git status --short --branch
+sudo git --no-pager log -1 --oneline
 sudo /usr/local/bin/foundryctl forge --no-updater --no-ledger \
   -f deploy/foundry/casting.yaml \
   -p deploy/foundry/pours
@@ -241,7 +293,7 @@ sudo docker compose \
 
 ## 배포 후 확인
 
-양쪽 서버에서 각각 실행한다.
+실제로 배포 승인된 서버에서 실행한다. 이 목록을 이유로 다른 서버까지 접속하거나 변경하지 않는다.
 
 ```bash
 cd /app/signoz
@@ -264,6 +316,10 @@ sudo docker inspect signoz-telemetrykeeper-zookeeper-0 \
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SELECT count() FROM system.mutations WHERE NOT is_done"
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
+  clickhouse-client --query "SELECT count() AS queue_total, countIf(last_exception != '') AS queue_errors FROM system.replication_queue"
+sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
+  clickhouse-client --query "SELECT database, table, queue_size, is_readonly, is_session_expired, absolute_delay FROM system.replicas ORDER BY database, table"
+sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SHOW GRANTS FOR sayis"
 ```
 
@@ -278,7 +334,9 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - 세 데이터 경로는 `/dev/mapper/vg_data-lv_data`의 ext4 `/data` 아래에 있어야 한다.
 - migrator는 `exited 0`이어야 한다.
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.
-- 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다.
+- 복제 대기열 건수만으로 장애를 단정하지 않는다. 정상 `MERGE_PARTS`와 같은 일시적 작업과 반복 실패를 구분하고, 예외·재시도 증가·지연을 함께 확인한다. 재발 진단은 저장소 운영 런북을 따른다.
+- 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다. 로그 유입 `0`건을 Infrastructure 메트릭 유입 없음으로 표현하지 않는다.
+- Collector는 Docker healthcheck가 없을 수 있다. 컨테이너 `running`만으로 완료 판정하지 않고 health endpoint, 전송 실패·수신 거부 지표와 실제 신규 적재를 확인한다.
 - 필수 포트와 Uptime Kuma/Prometheus collector 설정이 유지되어야 한다.
 - `sayis` 계정은 `signoz_metrics`와 `signoz_traces`에 대한 `SELECT` 권한만 가져야 한다.
 - 모든 SigNoZ 구성 요소와 연동 서비스는 `signoz-network`에서 공식 서비스명으로 통신해야 한다.
