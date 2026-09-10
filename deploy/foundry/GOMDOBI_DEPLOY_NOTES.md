@@ -15,10 +15,46 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 ## 최종 확인 요약
 
-- 2026-09-08 배포 검증 기준: 203·204 모두 SigNoZ `v0.140.0`, Collector / migrator `v0.144.9`다. ClickHouse `25.12.5`(실행 버전 `25.12.5.44`), ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
-- 업그레이드 설정과 양쪽 서버 배포 기록은 `main`의 `a72387f076`까지 반영됐다. 이 커밋에 아래 복제 오류 정리·보관본 삭제 기록까지 포함됐다는 의미는 아니다.
+- 2026-09-10 배포 검증 기준: 203·204 모두 SigNoZ `v0.141.1`, Collector / migrator `v0.144.9`다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
+- 이번 `v0.141.1` 변경과 배포 기록은 전용 작업 브랜치 `codex/upgrade-signoz-v0.141.1-203-204`에서 준비했으며, 배포 완료 후 사용자가 `main` 병합을 별도로 승인했다. 이전 `v0.140.0` 배포 기록은 `main`의 `a72387f076`에, 후속 정리 기록은 `eecd3aa260`에 반영돼 있다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-09-10 203·204 Docker 업그레이드
+
+- 배포 승인 범위는 203·204의 기존 Docker/Foundry 배포다. 저장소 반영은 배포 완료 후 별도 승인된 작업이며, 병합을 이유로 서버를 다시 배포하지 않는다.
+- SigNoZ `v0.140.0` → `v0.141.1`만 변경했다. 로컬과 서버에서 공식 `foundryctl v0.2.17 forge --no-updater --no-ledger`를 사용했고, Compose 검증은 종료 코드 `0`이었다.
+- 배포 전 양쪽 서버의 casting과 기본 Compose는 바이트 단위로 로컬 `origin/main` 기준과 일치했다. 203의 기존 미커밋 변경은 보관본의 Git patch와 Foundry 파일 복사본에 보존하고, 두 서버 모두 새 작업 브랜치를 만든 뒤 casting 버전만 변경했다. 서버 Git 이력을 다른 커밋으로 강제 동기화하지 않았다.
+- 적용 전후 유효 Compose를 JSON으로 비교해 SigNoZ 이미지 외의 변경이 없음을 확인했다. ingester·OpAMP·ClickHouse 생성 설정과 204 전용 override는 바이트 단위로 동일하다.
+- ingester와 SigNoZ만 정지한 뒤 SQLite 디렉토리를 복사했다. 정지 상태 원본/복사본 일치와 백업 SQLite `quick_check=ok`를 확인한 후 SigNoZ를 재생성하고 기존 ingester를 재개했다.
+- ClickHouse·ZooKeeper는 컨테이너 ID와 시작 시각을 유지했다. Collector 이미지·컨테이너 ID도 유지했다. telemetrystore migrator는 이번에 재실행하지 않았으며, 기존 `exited 0` 상태를 유지했다.
+
+### 정지 상태 백업 및 기동 시간
+
+| 서버 | 보관 경로 | SQLite 보관 크기 | 정지 요청 → health 확인(KST) |
+| --- | --- | --- | --- |
+| 203 | `/app/signoz-runtime/upgrade-v0.141.1-FMbEuU` | 5.4MB | 11:58:29 → 11:58:57 |
+| 204 | `/app/signoz-runtime/upgrade-v0.141.1-b499WP` | 948KB | 11:59:22 → 11:59:51 |
+
+- 보관 디렉토리는 root 전용이며 `sqlite/`, 변경 전 Foundry 파일, 유효 Compose, Git 상태/patch, ClickHouse 스키마, `sayis` 권한이 포함된다. 204는 전용 override도 포함한다. ClickHouse 전체 데이터 백업이 아니다.
+- 시간은 정지 요청부터 Docker health 확인까지이며, 실제 수집 누락량을 측정한 값은 아니다. Collector health의 `upSince`는 203 11:58:56, 204 11:59:51(KST)이다.
+- 새 설정 DB 변경 7개(공식 소스 파일 번호 `120`~`126`)가 양쪽 SQLite의 migration 테이블에 모두 기록됐다. 해당 변경의 `Down`은 원복을 구현하지 않으므로 이전 이미지 교체만으로 DB가 되돌아가지는 않는다. 위 정지 상태 백업을 복구 기준으로 보존한다.
+
+### 배포 후 검증
+
+- 양쪽 SigNoZ API `v0.141.1` / health `ok`, Docker health `healthy`, Collector health `Server available`. SigNoZ·Collector restart count는 `0`이다.
+- SQLite `quick_check=ok`. 기존 레코드 ID 목록을 백업과 대조했다. 203은 organization 1, 사용자 11, 대시보드 14, 알림 규칙 1, 알림 채널 4, Quick Filter 5개가 유지됐다. 204는 각각 1, 1, 1, 0, 0, 5개가 유지됐다. 기존 알림 채널 이름은 새 `display_name`에 동일하게 보존됐다.
+- 양쪽 ClickHouse 테이블 135개의 engine/key/View 생성 SQL을 포함한 스키마가 배포 전후 동일하고 `sayis` SELECT 권한도 동일하다. 복제 대기열·대기열 오류·readonly/session-expired replica·최대 복제 지연·미완료 mutation은 모두 `0`이었다.
+- `/data` LVM 마운트와 ClickHouse·SQLite·ZooKeeper bind mount는 유지됐다. Docker mount 배열은 반환 순서가 달라질 수 있으므로 destination으로 정렬하여 속성을 비교했다.
+- 최종 확인 구간의 Collector 전송 실패·수신 거부 지표는 203 13개, 204 9개 모두 `0`이었다.
+
+| 서버 / 조회 시각(KST) | 최근 2분 CPU 메트릭 | 메모리 메트릭 | 네트워크 메트릭 | 트레이스 | 로그 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 203 / 12:02:13 | 21,376 | 10,048 | 10,796 | 818 | 66 |
+| 204 / 12:02:01 | 296 | 174 | 152 | 29 | 0 |
+
+- CPU·메모리·네트워크는 각각 `system.cpu.time`, `system.memory.usage`, `system.network.io`의 실제 `samples_v4` 행 수다. 204에도 Infrastructure 메트릭과 트레이스가 유입된다. 204의 새 로그 유입은 이 구간에서 확인되지 않았다.
+- 기동 중 양쪽 SigNoZ에 active-query 로그 디렉토리 생성 오류와 active license 조회 오류가 각각 1건 있었다. Collector에는 기존 라이브러리 capabilities 경고와 SigNoZ 준비 전 OpAMP 연결 재시도가 있었다. 최종 조회 시 양쪽 SigNoZ·Collector 최근 2분 ERROR는 `0`건이었다. 관련 설정을 임의 변경하지 않았다.
 
 ## 2026-09-09 100.204 정리 작업 보관본 삭제
 
