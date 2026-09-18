@@ -13,12 +13,65 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 업그레이드 기준은 upstream 정식 릴리즈 태그다. `v0.130.1`부터 upstream의 legacy Docker Compose 파일은 제거되고 Foundry 기준으로 전환되었으므로, 양쪽 서버 모두 `deploy/foundry` 기준으로 배포한다.
 
+## 반복 업그레이드 고정 절차
+
+매번 새 절차나 별도 시험 환경을 만들지 않고 아래 순서를 재사용한다. 대상·버전만 승인된 값으로 바꾼다. 추가 시험과 성능 측정은 별도 요청이 있을 때만 수행한다.
+
+1. 공식 릴리즈와 기존 casting/실행 버전을 비교한다. SSH 별칭·적용값, Git 변경 상태, `/data` mount를 확인한다.
+2. 기존 변경을 보존하고 이번 작업 브랜치에서 casting 버전만 수정한다. 변경 전 Foundry 파일·유효 Compose·Git patch·컨테이너 상태를 root 전용 `/app/signoz-runtime/upgrade-<버전>-XXXXXX`에 보관한다. 204 override도 보관한다.
+3. 이미지를 미리 pull하고 기존 Foundry 명령으로 재생성한다. 유효 Compose에서 승인된 이미지 외 설정이 달라지면 배포하지 않는다.
+4. `ingester`와 `signoz-signoz-0`을 정지하고 `/data/sayit-sqlite`를 보관한다. SQLite `PRAGMA quick_check`를 확인한다.
+5. SigNoZ만 변경되면 migrator를 재실행하지 않는다. Collector/migrator가 변경되면 공식 migrator를 재생성하고 종료 코드 `0`을 확인한다. 실패하면 후속 기동을 중단하고 오류를 보고한다.
+6. `signoz-signoz-0`과 `ingester`를 기동한다. ClickHouse·ZooKeeper는 변경 대상으로 승인되지 않는 한 재생성하거나 재시작하지 않는다.
+7. 버전·health·재시작 횟수·실제 메트릭/트레이스 유입과 기존 mount·204 override 유지 여부만 확인하고 결과를 기록한다. 커밋·푸시·병합은 별도 지시에 따른다.
+
+원격 명령은 승인된 sudo 셸에서 아래 Compose 배열을 공통으로 사용한다. `git`과 `foundryctl`도 기존 root 소유 `/app/signoz`에서 실행하며, 매번 실행 계정이나 인증 방식을 바꾸지 않는다.
+
+```bash
+cd /app/signoz
+dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/pours/deployment/compose.yaml)
+# 204에서만 추가
+# dc+=(-f /app/signoz-runtime/docker-compose.204.override.yaml)
+/usr/local/bin/foundryctl --no-ledger --no-updater forge \
+  -f /app/signoz/deploy/foundry/casting.yaml -p /app/signoz/deploy/foundry/pours
+"${dc[@]}" config --quiet
+# 변경 전후 설정 비교와 이미지 pull 완료 후
+"${dc[@]}" stop ingester signoz-signoz-0
+# SQLite 복사 및 quick_check 완료 후, Collector 변경 시에만:
+# "${dc[@]}" up -d --no-deps --force-recreate --pull never signoz-telemetrystore-migrator
+# test "$(docker wait signoz-telemetrystore-migrator)" = 0
+"${dc[@]}" up -d --no-deps --pull never signoz-signoz-0 ingester
+```
+
+아래 날짜별 기록은 과거 실행 증거이며 새로운 절차로 해석하지 않는다. 아래 전체 스택 배포 예시는 최초 설치용이며 반복 업그레이드에는 위 선택적 기동 절차를 사용한다.
+
 ## 최종 확인 요약
 
-- 2026-09-10 배포 검증 기준: 203·204 모두 SigNoZ `v0.141.1`, Collector / migrator `v0.144.9`다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
-- 이번 `v0.141.1` 변경과 배포 기록은 전용 작업 브랜치 `codex/upgrade-signoz-v0.141.1-203-204`에서 준비했으며, 배포 완료 후 사용자가 `main` 병합을 별도로 승인했다. 이전 `v0.140.0` 배포 기록은 `main`의 `a72387f076`에, 후속 정리 기록은 `eecd3aa260`에 반영돼 있다.
+- 2026-09-18 배포 기준: 203·204 모두 SigNoZ `v0.142.1`, Collector / migrator `v0.144.10`이다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
+- 이번 변경은 전용 작업 브랜치 `codex/upgrade-signoz-v0.142.1-203-204`에서 준비했다. 배포 완료 후 사용자가 커밋과 `main` 병합을 별도로 승인했다. 푸시는 이번 승인 범위에 포함하지 않는다. 이전 배포는 아래 날짜별 이력을 따른다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-09-18 203·204 Docker 업그레이드
+
+- SigNoZ `v0.142.0` → `v0.142.1`만 적용했다. 유효 Compose 비교에서 SigNoZ 이미지 외 변경은 없었다. Collector/migrator 버전은 유지하며 migrator는 재실행하지 않았다.
+- SigNoZ·ingester 정지 후 SQLite를 보관하고 `quick_check=ok`를 확인했다. SigNoZ를 재생성하고 기존 ingester를 재개했다.
+- 보관 경로: 203 `/app/signoz-runtime/upgrade-v0.142.1-P1kz1e`, 204 `/app/signoz-runtime/upgrade-v0.142.1-rkRJr8`. 기존 Foundry 파일·유효 Compose·Git patch·컨테이너 상태·SQLite와 204 override를 보관했다. ClickHouse 전체 데이터 백업은 아니다.
+- 양쪽 버전 API `v0.142.1`, health `ok`, SigNoZ·Collector 재시작 횟수 `0`을 확인했다. 별도 시험 환경이나 성능 시험은 실행하지 않았다.
+- 최초 패치 적용은 문맥 없는 diff 옵션 누락으로 실패했다. 서비스 정지 전이었으며, 옵션을 바로잡아 같은 보관본·작업 브랜치에서 배포를 완료했다.
+
+## 2026-09-17 203·204 Docker 업그레이드
+
+- SigNoZ `v0.141.1` → `v0.142.0`, Collector / migrator `v0.144.9` → `v0.144.10`을 적용했다. 공식 Foundry `v0.2.17`로 산출물을 재생성했다.
+- 유효 Compose 비교에서 위 세 서비스 이미지 외의 변경은 없었다. 나머지 생성 설정은 변경 전과 바이트 단위로 동일하다.
+- 기존 미커밋 변경과 Foundry 파일을 보존하고, SigNoZ·ingester 정지 후 SQLite를 복사했다. 정지 상태 원본과 복사본 일치 및 백업 `quick_check=ok`를 확인했다. ClickHouse 전체 데이터 백업은 아니다.
+- 공식 migrator의 종료 코드가 양쪽 모두 `0`인 것을 확인한 뒤 SigNoZ·ingester를 기동했다. 양쪽 버전 API는 `v0.142.0`, health는 `ok`이며 기동 직후 restart count는 `0`이다.
+- 보관 경로: 203 `/app/signoz-runtime/upgrade-v0.142.0-71YMwp`, 204 `/app/signoz-runtime/upgrade-v0.142.0-yzBovy` (root 전용).
+- 정지 요청 → API health 확인(KST): 203 `17:39:00 → 17:39:28`, 204 `17:40:07 → 17:40:33`. 실제 수집 누락량을 측정한 값은 아니다.
+- 최종 확인: 양쪽 SigNoZ `healthy`, Collector `Server available`, SQLite `quick_check=ok`, 복제 대기열·대기열 오류·미완료 mutation `0`. 조회 직전 30초의 SigNoZ·Collector ERROR 로그는 `0`건이다. sayis-dashboard-api 컨테이너도 양쪽 `healthy`이며 성능 측정은 하지 않았다.
+- ClickHouse·ZooKeeper의 컨테이너 ID/시작 시각, 모든 기존 데이터 mount, `sayis` 권한, 204 override는 유지됐다. 트레이스 로컬/분산 테이블에 새 `attributes_promoted` JSON 컬럼이 적용됐다.
+- 최근 2분 실적재 조회(KST): 203 `17:40:07` CPU 17,576 / 메모리 8,198 / 네트워크 8,888 / 트레이스 679건, 204 `17:41:07` 각각 280 / 162 / 180 / 24건. 메트릭 이름은 기존 검증과 동일하며 조회 구간에 재시작 전후가 함께 포함된다.
+- 별도 성능·호환성 시험은 사용자 지시에 따라 중단했으며, 시험 통과 또는 성능 개선을 주장하지 않는다.
 
 ## 2026-09-10 203·204 Docker 업그레이드
 
@@ -249,7 +302,7 @@ test "$(grep -Fc '/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pou
 - ClickHouse, collector, telemetrystore migrator 이미지 버전을 이전 배포와 비교한다.
 - telemetry 테이블의 engine, sorting key, partition key, primary key를 비교한다.
 - View와 Materialized View의 생성 SQL을 비교한다.
-- 구조 변경이 있으면 API 주요 쿼리의 실행 계획과 응답시간을 배포 전후로 비교한다.
+- 구조 변경이 있으면 영향 내용을 먼저 보고한다. API 실행 계획·응답시간 비교 등 별도 성능 시험은 사용자가 요청한 경우에만 수행한다.
 
 ```sql
 SELECT
