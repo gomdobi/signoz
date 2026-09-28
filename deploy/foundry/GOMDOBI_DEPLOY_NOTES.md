@@ -18,8 +18,8 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 매번 새 절차나 별도 시험 환경을 만들지 않고 아래 순서를 재사용한다. 대상·버전만 승인된 값으로 바꾼다. 추가 시험과 성능 측정은 별도 요청이 있을 때만 수행한다.
 
 1. 공식 릴리즈와 기존 casting/실행 버전을 비교한다. SSH 별칭·적용값, Git 변경 상태, `/data` mount를 확인한다.
-2. 기존 변경을 보존하고 이번 작업 브랜치에서 casting 버전만 수정한다. 변경 전 Foundry 파일·유효 Compose·Git patch·컨테이너 상태를 root 전용 `/app/signoz-runtime/upgrade-<버전>-XXXXXX`에 보관한다. 204 override도 보관한다.
-3. 이미지를 미리 pull하고 기존 Foundry 명령으로 재생성한다. 유효 Compose에서 승인된 이미지 외 설정이 달라지면 배포하지 않는다.
+2. 기존 변경을 보존하고 이번 작업 브랜치에서 casting 버전 및 공식 업그레이드 가이드가 요구하는 설정을 반영한다. 변경 전 Foundry 파일·유효 Compose·Git patch·컨테이너 상태를 root 전용 `/app/signoz-runtime/upgrade-<버전>-XXXXXX`에 보관한다. 204 override도 보관한다.
+3. 이미지를 미리 pull하고 기존 Foundry 명령으로 재생성한다. 유효 Compose와 생성 설정에서 승인된 이미지·필수 설정 외 변경이 있으면 배포하지 않는다. Foundry 갱신이 필요하면 기존 바이너리를 보관하고 공식 설치 스크립트의 버전·경로를 명시한다.
 4. `ingester`와 `signoz-signoz-0`을 정지하고 `/data/sayit-sqlite`를 보관한다. SQLite `PRAGMA quick_check`를 확인한다.
 5. SigNoZ만 변경되면 migrator를 재실행하지 않는다. Collector/migrator가 변경되면 공식 migrator를 재생성하고 종료 코드 `0`을 확인한다. 실패하면 후속 기동을 중단하고 오류를 보고한다.
 6. `signoz-signoz-0`과 `ingester`를 기동한다. ClickHouse·ZooKeeper는 변경 대상으로 승인되지 않는 한 재생성하거나 재시작하지 않는다.
@@ -47,10 +47,24 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ## 최종 확인 요약
 
-- 2026-09-18 배포 기준: 203·204 모두 SigNoZ `v0.142.1`, Collector / migrator `v0.144.10`이다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`, foundryctl `v0.2.17`은 유지했다.
-- 이번 변경은 전용 작업 브랜치 `codex/upgrade-signoz-v0.142.1-203-204`에서 준비했다. 배포 완료 후 사용자가 커밋과 `main` 병합을 별도로 승인했다. 푸시는 이번 승인 범위에 포함하지 않는다. 이전 배포는 아래 날짜별 이력을 따른다.
+- 2026-09-28 배포 확인: 203·204 모두 SigNoZ `v0.143.0`, Collector / migrator `v0.144.12`, foundryctl `v0.3.0`이다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`은 유지했다. 실행 결과는 아래 날짜별 기록을 따른다.
+- 이번 변경은 전용 작업 브랜치 `codex/upgrade-signoz-v0.143.0-203-204`에서 준비했다. 서버 업그레이드 완료 후 사용자의 별도 지시로 이번 변경의 커밋과 로컬 `main` 병합을 진행한다. 원격 푸시는 별도 지시 대상이다. 이전 `v0.142.1` 변경은 별도 지시로 커밋 `e1b53c6123`을 `main`에 병합·푸시했다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-09-28 203·204 Docker 업그레이드
+
+- 기존 고정 절차로 SigNoZ `v0.142.1` → `v0.143.0`, Collector / migrator `v0.144.10` → `v0.144.12`를 적용했다. 공식 스크립트 `https://signoz.io/foundry.sh`의 `-v v0.3.0 -d /usr/local/bin -y`로 양쪽 foundryctl을 갱신했다. 체크섬 검증과 설치 후 버전 실행은 공식 스크립트가 수행했다. 기존 바이너리는 아래 보관본에 보존했다.
+- casting에 공식 `signozspanmapper`, `signozllmpricing` 정의와 traces pipeline 순서를 반영하고 Foundry `v0.3.0`으로 재생성했다. 유효 Compose는 SigNoZ·Collector·migrator 이미지 세 개만 변경됐고, 생성 설정은 ingester의 위 프로세서 정의·순서 외 바이트 단위로 동일했다. 실제 OpAMP 적용 후 `/var/tmp/collector-config.yaml`의 프로세서 순서도 확인했다.
+- 기존 미커밋 변경을 보존하고 서버별 새 작업 브랜치를 생성했다. SigNoZ·ingester 정지 후 SQLite를 복사하고 원본/복사본 일치 및 백업 `quick_check=ok`를 확인했다. migrator 종료 코드 양쪽 `0`, ClickHouse 트레이스 마이그레이션 `1017`의 `finished` 기록을 확인한 뒤 서비스를 기동했다.
+- root 전용 보관 경로: 203 `/app/signoz-runtime/upgrade-v0.143.0-RdHhIv`, 204 `/app/signoz-runtime/upgrade-v0.143.0-ytUPCW`. 변경 전 Foundry·바이너리·Git patch·유효 Compose·컨테이너 상태·SQLite·ClickHouse 스키마·sayis 권한과 204 override가 포함된다. ClickHouse 전체 데이터 백업은 아니다.
+- 정지 요청 → API health 확인(KST): 203 `09:08:08 → 09:08:50`, 204 `09:09:31 → 09:10:08`. Collector ready는 각각 `09:08:50`, `09:10:13`이다. 실제 수집 누락량을 측정한 값은 아니다.
+- 양쪽 SigNoZ `v0.143.0` / API health `ok` / Docker `healthy`, Collector `Server available`, 재시작 횟수 `0`, SQLite `quick_check=ok`, sayis-dashboard-api `healthy`를 확인했다. 별도 성능 시험은 수행하지 않았다.
+- 기존 테이블 135개와 engine/sorting/partition/primary key를 유지했다. 트레이스 로컬·분산 테이블에 AI 관련 컬럼 각각 26개와 로컬 테이블 인덱스 3개가 반영됐다. 복제 대기열·대기열 오류·미완료 mutation은 모두 `0`이다. ClickHouse·ZooKeeper 컨테이너 ID/시작 시각, 모든 기존 mount, sayis 권한, 204 override가 유지됐다.
+- SQLite 기존 ID 목록 보존: 203 dashboard 14 / rule 1 / notification_channel 4 / quick_filter 5, 204 각각 1 / 0 / 0 / 5개를 확인했다.
+- `09:10:25`(KST) 최근 2분 실적재: 203 CPU 17,464 / 메모리 8,096 / 네트워크 8,828 / 트레이스 964건, 204 각각 192 / 114 / 112 / 25건. 메트릭 이름은 `system.cpu.time`, `system.memory.usage`, `system.network.io`이며 재시작 전후가 함께 포함된 구간이다.
+- 기동 중 기존 active-query 디렉토리·license 조회 오류 및 OpAMP 연결 재시도가 있었으나 ready 이후 최종 조회 시 SigNoZ·Collector ERROR는 양쪽 `0`이었다. 관련 설정을 임의 변경하지 않았다. 인증은 새 공식 기본 opaque provider를 적용했으며 기존 사용자는 한 번 다시 로그인한다.
+- 오프라인 설치기 점검 사항은 사용자 지시로 담당 작업에 정보만 전달한 상태다. 이번 작업은 Docker 203·204 배포이며 오프라인 번들이나 K3s 변경은 포함하지 않았다.
 
 ## 2026-09-18 203·204 Docker 업그레이드
 
@@ -246,6 +260,7 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ### `deploy/foundry/pours/deployment/ingester/ingester.yaml`
 
+- SigNoZ `v0.143.0`부터 공식 AI 프로세서 `signozspanmapper`, `signozllmpricing`의 정의와 traces pipeline 항목을 포함한다. 순서는 `signozspanmetrics/delta → signozspanmapper → signozllmpricing → batch`다. OpAMP는 설정 내용을 관리하지만 pipeline 목록에 자동 추가하지 않는다.
 - `receivers.prometheus.config.scrape_configs`에 `job_name: uptime-kuma`가 있어야 한다.
 - `uptime-kuma` scrape job은 아래 값을 유지해야 한다.
   - `metrics_path: /metrics`
@@ -258,6 +273,13 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 - `exporters.prometheus.endpoint`는 `0.0.0.0:8889`이어야 한다.
 - `service.pipelines.metrics.exporters`에 `prometheus`가 있어야 한다.
 - `service.pipelines.metrics/prometheus.exporters`에 `prometheus`가 있어야 한다.
+
+### v0.143.0 필수 변경
+
+- 공식 안내: https://signoz.io/docs/operate/migration/upgrade-0-143/
+- Foundry `v0.3.0`으로 위 프로세서를 포함한 설정을 생성한다. 기존 custom traces processors 목록이 기본 목록을 대체하므로 casting 자체에 두 프로세서를 반영한다.
+- Collector `v0.144.12`의 ClickHouse 트레이스 마이그레이션 `1017`은 AI 속성 13개와 존재 여부 컬럼·인덱스를 추가한다. 기존 공식 migrator 명령으로 처리하며 별도 수동 DDL을 추가하지 않는다.
+- 인증은 공식 기본 opaque provider를 따른다. 기존 JWT secret만으로 JWT provider가 선택되지 않으며, 업그레이드 후 사용자는 한 번 다시 로그인한다. JWT provider를 별도로 강제하지 않는다.
 
 ## 업그레이드 조회와 승인 후 준비
 

@@ -8,15 +8,15 @@ spec:
     mode: docker
   signoz:
     spec:
-      image: signoz/signoz:v0.142.1
-      version: v0.142.1
+      image: signoz/signoz:v0.143.0
+      version: v0.143.0
       env:
         SIGNOZ_ALERTMANAGER_PROVIDER: signoz
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
   ingester:
     spec:
-      image: signoz/signoz-otel-collector:v0.144.10
-      version: v0.144.10
+      image: signoz/signoz-otel-collector:v0.144.12
+      version: v0.144.12
       env:
         OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
         LOW_CARDINAL_EXCEPTION_GROUPING: "false"
@@ -63,6 +63,23 @@ spec:
                           labels:
                             job_name: uptime-kuma
             processors:
+              signozspanmapper:
+                groups: []
+              signozllmpricing:
+                attrs:
+                  model: gen_ai.request.model
+                  in: gen_ai.usage.input_tokens
+                  out: gen_ai.usage.output_tokens
+                  cache_read: gen_ai.usage.cache_read.input_tokens
+                  cache_write: gen_ai.usage.cache_creation.input_tokens
+                default_pricing:
+                  rules: []
+                output_attrs:
+                  in: signoz.gen_ai.usage.input_tokens.cost
+                  out: signoz.gen_ai.usage.output_tokens.cost
+                  cache_read: signoz.gen_ai.usage.cache_read.input_tokens.cost
+                  cache_write: signoz.gen_ai.usage.cache_write.input_tokens.cost
+                  total: signoz.gen_ai.usage.tokens.cost
               batch:
                 send_batch_size: 10000
                 send_batch_max_size: 11000
@@ -135,7 +152,7 @@ spec:
               pipelines:
                 traces:
                   receivers: [otlp]
-                  processors: [signozspanmetrics/delta, batch]
+                  processors: [signozspanmetrics/delta, signozspanmapper, signozllmpricing, batch]
                   exporters: [clickhousetraces, metadataexporter, signozmeter]
                 metrics:
                   receivers: [otlp]
