@@ -100,7 +100,7 @@ users:
     quota: default
 zookeeper:
   node:
-  - host: signoz-telemetrykeeper-zookeeper-0
-    port: 2181
+  - host: signoz-telemetrykeeper-clickhousekeeper-0
+    port: 9181
 zookeeper_log:
   ttl: event_date + INTERVAL 1 DAY DELETE

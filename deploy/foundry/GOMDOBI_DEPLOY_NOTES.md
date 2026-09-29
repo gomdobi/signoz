@@ -18,11 +18,12 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 매번 새 절차나 별도 시험 환경을 만들지 않고 아래 순서를 재사용한다. 대상·버전만 승인된 값으로 바꾼다. 추가 시험과 성능 측정은 별도 요청이 있을 때만 수행한다.
 
 1. 공식 릴리즈와 기존 casting/실행 버전을 비교한다. SSH 별칭·적용값, Git 변경 상태, `/data` mount를 확인한다.
+   - 2026-09-28 별도 승인으로 203·204 모두 ClickHouse Keeper로 전환했다. 204 전용 override도 Keeper 서비스명을 사용하며, 과거 ZooKeeper casting으로 덮어쓰지 않는다.
 2. 기존 변경을 보존하고 이번 작업 브랜치에서 casting 버전 및 공식 업그레이드 가이드가 요구하는 설정을 반영한다. 변경 전 Foundry 파일·유효 Compose·Git patch·컨테이너 상태를 root 전용 `/app/signoz-runtime/upgrade-<버전>-XXXXXX`에 보관한다. 204 override도 보관한다.
 3. 이미지를 미리 pull하고 기존 Foundry 명령으로 재생성한다. 유효 Compose와 생성 설정에서 승인된 이미지·필수 설정 외 변경이 있으면 배포하지 않는다. Foundry 갱신이 필요하면 기존 바이너리를 보관하고 공식 설치 스크립트의 버전·경로를 명시한다.
 4. `ingester`와 `signoz-signoz-0`을 정지하고 `/data/sayit-sqlite`를 보관한다. SQLite `PRAGMA quick_check`를 확인한다.
 5. SigNoZ만 변경되면 migrator를 재실행하지 않는다. Collector/migrator가 변경되면 공식 migrator를 재생성하고 종료 코드 `0`을 확인한다. 실패하면 후속 기동을 중단하고 오류를 보고한다.
-6. `signoz-signoz-0`과 `ingester`를 기동한다. ClickHouse·ZooKeeper는 변경 대상으로 승인되지 않는 한 재생성하거나 재시작하지 않는다.
+6. `signoz-signoz-0`과 `ingester`를 기동한다. ClickHouse·Keeper/ZooKeeper는 변경 대상으로 승인되지 않는 한 재생성하거나 재시작하지 않는다.
 7. 버전·health·재시작 횟수·실제 메트릭/트레이스 유입과 기존 mount·204 override 유지 여부만 확인하고 결과를 기록한다. 커밋·푸시·병합은 별도 지시에 따른다.
 
 원격 명령은 승인된 sudo 셸에서 아래 Compose 배열을 공통으로 사용한다. `git`과 `foundryctl`도 기존 root 소유 `/app/signoz`에서 실행하며, 매번 실행 계정이나 인증 방식을 바꾸지 않는다.
@@ -47,10 +48,37 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ## 최종 확인 요약
 
-- 2026-09-28 배포 확인: 203·204 모두 SigNoZ `v0.143.0`, Collector / migrator `v0.144.12`, foundryctl `v0.3.0`이다. ClickHouse `25.12.5`, ZooKeeper `3.7.1`은 유지했다. 실행 결과는 아래 날짜별 기록을 따른다.
-- 이번 변경은 전용 작업 브랜치 `codex/upgrade-signoz-v0.143.0-203-204`에서 준비했다. 서버 업그레이드 완료 후 사용자의 별도 지시로 이번 변경의 커밋과 로컬 `main` 병합을 진행한다. 원격 푸시는 별도 지시 대상이다. 이전 `v0.142.1` 변경은 별도 지시로 커밋 `e1b53c6123`을 `main`에 병합·푸시했다.
+- 2026-09-28 배포 확인: 203·204 모두 SigNoZ `v0.143.0`, Collector / migrator `v0.144.12`, foundryctl `v0.3.0`, ClickHouse `25.12.5`다. 이후 서버별 추가 승인으로 양쪽 모두 ClickHouse Keeper `25.12.5`로 전환했다.
+- 버전 업그레이드 커밋은 `074f153a23`이다. Keeper 전환의 로컬 작업 브랜치는 `codex/keeper-migration-203-20260928`이며, 후속 204 작업도 같은 작업에서 관리한다. 서버 작업 브랜치는 각각 `codex/keeper-migration-203-20260928`, `codex/keeper-migration-204-20260928`이다. 2026-09-29 사용자가 두 변경의 커밋·`main` 병합·원격 반영을 승인했다. 이 형상관리 작업에는 서버 재배포나 다른 작업의 파일 변경을 포함하지 않는다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-09-28 204 ZooKeeper → ClickHouse Keeper 전환
+
+- 203 전환 후 사용자의 추가 지시로 204도 같은 공식 변환 절차를 적용했다. 기존 Foundry `v0.3.0`으로 ClickHouse Keeper `25.12.5` 설정을 생성했으며, ClickHouse·SigNoZ·Collector 이미지는 유지하고 migrator는 재실행하지 않았다. 이 후속 작업에서 203 서버는 변경하지 않았다.
+- 영구 경로는 `/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper`, ClickHouse coordination endpoint는 `signoz-telemetrykeeper-clickhousekeeper-0:9181`이다. Keeper 클라이언트/Raft 포트는 호스트에 공개하지 않았다. `/data`의 `vg_data/lv_data` ext4 mount는 그대로 유지했다.
+- root 전용 보관본: `/app/signoz-runtime/keeper-migration-204-NR33Uf`. 변경 전 Foundry·Git patch·유효 Compose·컨테이너 상태·204 override, 정지 상태 SQLite·ZooKeeper 복사본, 변환 스냅샷, 스키마·UUID·replica 경로·권한·행 수 비교 자료를 보관했다. SQLite `quick_check=ok`, 정지 상태 ZooKeeper 복사본과 원본 대조가 성공했다. ClickHouse 전체 데이터 백업은 아니다.
+- 204 override는 `signoz-telemetrykeeper-zookeeper-0` 서비스 키만 `signoz-telemetrykeeper-clickhousekeeper-0`으로 바꿨다. 나머지 설정값이 동일함을 구조 비교로 확인했고, 유효 Compose도 Keeper 서비스 교체와 ClickHouse 의존 서비스 변경 외 동일하다. override SHA-256은 `561d286d3bca7b140c04fc29b13aa998e3bc8315bf1fe19a1d2eb3ef5cb1481b` → `6ea3493bb7f1d0cc4b5f9800c63dd017708822ebb699df15229a9e26e4b10844`다.
+- 수집·SigNoZ, ClickHouse, ZooKeeper 순으로 정지한 뒤 공식 `keeper-converter`로 변환했다. 결과는 `snapshot_34854180.bin.zstd`(269,613 bytes)이며 Keeper 최초 기동 전에 배치했다. 기존 `/data/sayit-zookeeper`(정지 후 133MB)와 ZooKeeper 컨테이너는 정지 상태로 보존했다. 신규 쓰기가 재개됐으므로 옛 ZooKeeper 단순 재기동으로 원복하지 않는다.
+- 정지 요청 `12:43:31` → Keeper 기동 확인 `12:45:14` → SigNoZ·Collector health 확인 `12:45:40`(KST), 총 2분 9초다. Collector는 90초 종료 대기 후 종료 코드 `137`로 정지됐다. 정지 구간의 미수집량은 측정하지 않았다.
+- 테이블 135개의 UUID/engine/key, 복제 테이블 56개의 coordination 경로·replica명, sayis 권한이 일치했다. Keeper의 `/clickhouse/tables` 아래 기존 56개 경로가 모두 존재한다. ClickHouse·SigNoZ·Collector의 기존 mount도 그대로 유지됐다.
+- 기존 데이터가 있는 테이블 26개 중 24개는 재기동 전후 물리 행 수가 같았다. `signoz_metrics.usage`와 `signoz_traces.usage`는 각각 72 → 71행이며, 기존 3일 TTL과 `system.part_log`의 `TTLDeleteMerge`(각각 71행 읽기, 70행 출력)로 확인했다.
+- `12:46:38` 최종 조회: SigNoZ·ClickHouse·Keeper `healthy`, Collector `Server available`, 네 서비스 재시작 횟수 0. readonly·session expired·복제 대기열·대기열 오류·미완료 mutation은 모두 0이다. `12:45:40` 이후 새 CPU 120 / 메모리 78 / 네트워크 88 / 트레이스 15건을 확인했다. ready 이후 ERROR는 네 서비스 모두 0이며 sayis-dashboard-api도 `healthy`다.
+- 공통 casting/Compose SHA-256은 203 적용본과 동일하다. 9월 28일 서버 전환 당시에는 커밋·푸시·병합하지 않았으며, 이후 형상관리 승인 범위는 위 최종 확인 요약을 따른다.
+- 공식 절차: https://clickhouse.com/docs/guides/oss/deployment-and-scaling/keeper#migration-from-zookeeper
+
+## 2026-09-28 203 ZooKeeper → ClickHouse Keeper 전환
+
+- 대상은 203만이다. 204 서버는 변경하지 않았다. 공식 Foundry `v0.3.0`의 `telemetrykeeper.kind: clickhousekeeper`와 이미지 `clickhouse/clickhouse-keeper:25.12.5`를 사용했다. 기존 ClickHouse·SigNoZ·Collector 이미지와 스키마 버전은 유지했고 migrator를 재실행하지 않았다.
+- Keeper 영구 경로는 `/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper`다. Keeper 설정은 Foundry 공식 생성 기본값을 사용했다. ClickHouse의 coordination endpoint는 `signoz-telemetrykeeper-clickhousekeeper-0:9181`로 변경했다. 유효 Compose 비교에서 Keeper 서비스 교체와 ClickHouse 의존 서비스 변경만, ClickHouse 설정 비교에서 ZooKeeper 접속 대상 변경만 확인했다.
+- root 전용 보관본: `/app/signoz-runtime/keeper-migration-203-iJJ7Qv`. 변경 전 Foundry·Git patch·Compose·컨테이너 상태, 정지 상태 SQLite·ZooKeeper 복사본, 변환 스냅샷, 테이블 UUID/스키마·replica 경로·권한·행 수 비교 자료가 있다. ClickHouse 전체 데이터 백업은 아니다.
+- 수집과 SigNoZ를 정지하고 ClickHouse merge·복제 대기열·mutation을 확인한 뒤 ClickHouse와 ZooKeeper를 정지했다. ZooKeeper 데이터 디렉토리 복사본은 원본과 대조했다. 설치된 ClickHouse의 공식 `keeper-converter`로 snapshot·transaction log를 변환했다. 결과는 `snapshot_9797.bin.zstd`(16,086 bytes)이며, Keeper 최초 기동 전에 snapshot 디렉토리에 배치했다.
+- 기존 `/data/sayit-zookeeper`와 ZooKeeper 컨테이너는 정지 상태로 보존했다. Keeper에서 신규 쓰기를 재개한 뒤에는 옛 ZooKeeper를 단순 재기동하는 방식으로 원복하지 않는다. 양쪽 coordination 상태의 시점이 달라지므로 별도 복구 판단이 필요하다.
+- 정지 요청 `11:51:47` → Keeper 기동 확인 `11:53:49` → SigNoZ·Collector health 확인 `11:54:21`(KST). Collector는 90초 종료 대기 후 종료 코드 `137`로 정지됐고, 정지 중 OpAMP 접속 재시도 로그가 있었다. 정지 구간의 미수집량은 측정하지 않았다. 재기동 이후 Collector는 정상 수집 중이며 최종 검증 구간 ERROR는 0이다.
+- 최종 상태: SigNoZ·ClickHouse·Keeper `healthy`, Collector `Server available`, 네 서비스 재시작 횟수 0. 테이블 135개의 UUID/engine/key, 복제 테이블 12개의 ZooKeeper 경로·replica명, sayis 권한과 ClickHouse mount가 일치했다. readonly·session expired·복제 대기열·대기열 오류·미완료 mutation은 모두 0이다. Keeper client에서 `ls '/clickhouse/tables'`로 복제 메타데이터 경로도 확인했다. 경로는 따옴표로 감싸며, client 종료 코드만으로 조회 성공을 판단하지 않는다.
+- 기존 데이터가 있는 테이블 35개를 확인했다. 그중 34개는 재기동 전후 물리 행 수가 같았고, `signoz_logs.usage`의 74 → 71행 변경은 `system.part_log`의 `TTLDeleteMerge`(72행 읽기, 69행 출력) 및 기존 3일 TTL로 확인했다.
+- `11:55:25` 조회: `11:54:21` 이후 새 CPU 11,060 / 메모리 5,178 / 네트워크 5,576 / 트레이스 724건을 확인했다. SigNoZ·Collector·ClickHouse·Keeper의 ready 이후 ERROR는 모두 0이며, sayis-dashboard-api도 `healthy`다.
+- 공식 절차: https://clickhouse.com/docs/guides/oss/deployment-and-scaling/keeper#migration-from-zookeeper
 
 ## 2026-09-28 203·204 Docker 업그레이드
 
@@ -219,7 +247,7 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 ### `deploy/foundry/casting.yaml`
 
 - `metastore.kind`는 `sqlite`를 사용한다.
-- `telemetrykeeper.kind`는 기존 데이터 볼륨 재사용을 위해 `zookeeper`를 사용한다.
+- `telemetrykeeper.kind`는 `clickhousekeeper`를 사용한다. 기존 ZooKeeper 메타데이터는 공식 converter로 변환했으며, 예전 ZooKeeper 데이터 디렉토리를 Keeper에 직접 연결하지 않는다.
 - ClickHouse macro는 기존 값과 일치해야 한다.
   - `shard: "01"`
   - `replica: "example01-01-1"`
@@ -231,7 +259,7 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 - 영구 데이터는 호스트 bind mount를 사용한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
   - `/data/sayit-sqlite:/var/lib/signoz`
-  - `/data/sayit-zookeeper:/bitnami/zookeeper`
+  - `/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper`
   - JSON Patch의 `test`로 Foundry가 생성한 기존 mount를 먼저 검증한 뒤 `replace`한다.
   - upstream 생성 구조가 바뀌어 `test`가 실패하면 patch 경로를 임의로 우회하지 않고 생성물을 비교한다.
 - 이전 `signoz-clickhouse`, `signoz-sqlite`, `signoz-zookeeper-1` 볼륨은 롤백용으로 보존하며 Compose에서 관리하지 않는다.
@@ -248,7 +276,7 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 - 영구 데이터 mount는 아래 값을 유지해야 한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
   - `/data/sayit-sqlite:/var/lib/signoz`
-  - `/data/sayit-zookeeper:/bitnami/zookeeper`
+  - `/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper`
 - ingester 포트는 아래 포트를 노출해야 한다.
   - `4317:4317`
   - `4318:4318`
@@ -285,7 +313,7 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ### 조회 단계 — 배포하지 않음
 
-`gomdobi/signoz`의 `origin/main:deploy/foundry/casting.yaml` 버전과 upstream 최신 정식 릴리즈를 먼저 비교한다. RC·개발 브랜치는 대상에서 제외한다. 업그레이드 대상이면 공식 릴리즈 노트에서 Collector·migrator·ClickHouse·ZooKeeper·Foundry 변경을 우선 확인한다. 단순 조회 지시를 서버 접속, 파일 재생성, 배포나 `main` 병합 승인으로 확대하지 않는다.
+`gomdobi/signoz`의 `origin/main:deploy/foundry/casting.yaml` 버전과 upstream 최신 정식 릴리즈를 먼저 비교한다. RC·개발 브랜치는 대상에서 제외한다. 업그레이드 대상이면 공식 릴리즈 노트에서 Collector·migrator·ClickHouse·ClickHouse Keeper·Foundry 변경을 우선 확인한다. 단순 조회 지시를 서버 접속, 파일 재생성, 배포나 `main` 병합 승인으로 확대하지 않는다.
 
 ```bash
 git fetch origin main
@@ -312,7 +340,7 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 2. 커스텀 유지 여부를 확인한다.
 
 ```bash
-grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|signoz/zookeeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
+grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|clickhouse/clickhouse-keeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse|/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
 grep -nE 'replica: example01-01-1|shard: "01"|sayis:|GRANT SELECT ON signoz_(metrics|traces)\.\*' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
 test "$(grep -Fc '/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml)" -eq 1
@@ -353,7 +381,7 @@ cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 test "$(findmnt -n -o SOURCE -T /data/sayit-clickhouse)" = "/dev/mapper/vg_data-lv_data"
 test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
-test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse-keeper)" = "/data"
 sudo git status --short --branch
 sudo git --no-pager log -1 --oneline
 sudo /usr/local/bin/foundryctl forge --no-updater --no-ledger \
@@ -370,7 +398,7 @@ sudo docker compose \
 cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
-test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse-keeper)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   pull
@@ -381,13 +409,13 @@ sudo docker compose \
 
 ## 100.204 외부망 풀스택 배포
 
-100.204의 호스트 전용 설정은 Git 저장소 밖의 `/app/signoz-runtime/docker-compose.204.override.yaml`에서 유지한다.
+100.204의 호스트 전용 설정은 Git 저장소 밖의 `/app/signoz-runtime/docker-compose.204.override.yaml`에서 유지한다. 2026-09-28 Keeper 전환 시 `signoz-telemetrykeeper-zookeeper-0` 키만 `signoz-telemetrykeeper-clickhousekeeper-0`으로 변경했으며 나머지 값은 그대로 보존했다.
 
 ```bash
 cd /app/signoz
 test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse)" = "/data"
 test "$(findmnt -n -o TARGET -T /data/sayit-sqlite)" = "/data"
-test "$(findmnt -n -o TARGET -T /data/sayit-zookeeper)" = "/data"
+test "$(findmnt -n -o TARGET -T /data/sayit-clickhouse-keeper)" = "/data"
 sudo docker compose \
   -f deploy/foundry/pours/deployment/compose.yaml \
   -f /app/signoz-runtime/docker-compose.204.override.yaml \
@@ -417,13 +445,13 @@ sudo docker inspect signoz-telemetrystore-migrator --format '{{.State.Status}} {
 mountpoint -q /data
 findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-clickhouse
 findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-sqlite
-findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-zookeeper
+findmnt -n -o SOURCE,FSTYPE,TARGET -T /data/sayit-clickhouse-keeper
 sudo docker inspect signoz-telemetrystore-clickhouse-0-0 \
   --format '{{range .Mounts}}{{if eq .Destination "/var/lib/clickhouse"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
 sudo docker inspect signoz-signoz-0 \
   --format '{{range .Mounts}}{{if eq .Destination "/var/lib/signoz"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
-sudo docker inspect signoz-telemetrykeeper-zookeeper-0 \
-  --format '{{range .Mounts}}{{if eq .Destination "/bitnami/zookeeper"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
+sudo docker inspect signoz-telemetrykeeper-clickhousekeeper-0 \
+  --format '{{range .Mounts}}{{if eq .Destination "/var/lib/clickhouse-keeper"}}{{.Type}} {{.Source}} {{.Destination}}{{end}}{{end}}'
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
   clickhouse-client --query "SELECT count() FROM system.mutations WHERE NOT is_done"
 sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
@@ -438,10 +466,10 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 
 - API 버전이 대상 SigNoZ 버전과 일치해야 한다.
 - `signoz-signoz-0`는 healthy 상태여야 한다.
-- ClickHouse와 ZooKeeper는 healthy 상태여야 한다.
+- ClickHouse와 ClickHouse Keeper는 healthy 상태여야 한다.
 - ClickHouse 데이터 mount는 `bind /data/sayit-clickhouse /var/lib/clickhouse`여야 한다.
 - SQLite 데이터 mount는 `bind /data/sayit-sqlite /var/lib/signoz`여야 한다.
-- ZooKeeper 데이터 mount는 `bind /data/sayit-zookeeper /bitnami/zookeeper`여야 한다.
+- Keeper 데이터 mount는 `bind /data/sayit-clickhouse-keeper /var/lib/clickhouse-keeper`여야 한다. 이전 ZooKeeper 컨테이너는 정지 상태로 보존하며 재기동하지 않는다.
 - 세 데이터 경로는 `/dev/mapper/vg_data-lv_data`의 ext4 `/data` 아래에 있어야 한다.
 - migrator는 `exited 0`이어야 한다.
 - 완료되지 않은 ClickHouse mutation 수는 `0`이어야 한다.

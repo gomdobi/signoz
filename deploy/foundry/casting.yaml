@@ -173,10 +173,10 @@ spec:
   metastore:
     kind: sqlite
   telemetrykeeper:
-    kind: zookeeper
+    kind: clickhousekeeper
     spec:
-      image: signoz/zookeeper:3.7.1
-      version: 3.7.1
+      image: clickhouse/clickhouse-keeper:25.12.5
+      version: 25.12.5
   telemetrystore:
     spec:
       image: clickhouse/clickhouse-server:25.12.5
@@ -214,11 +214,11 @@ spec:
             - 8123:8123
             - 9181:9181
         - op: test
-          path: /services/signoz-telemetrykeeper-zookeeper-0/volumes/0
-          value: signoz-telemetrykeeper-0-data:/bitnami/zookeeper
+          path: /services/signoz-telemetrykeeper-clickhousekeeper-0/volumes/0
+          value: signoz-telemetrykeeper-0-data:/var/lib/clickhouse-keeper
         - op: replace
-          path: /services/signoz-telemetrykeeper-zookeeper-0/volumes/0
-          value: /data/sayit-zookeeper:/bitnami/zookeeper
+          path: /services/signoz-telemetrykeeper-clickhousekeeper-0/volumes/0
+          value: /data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper
         - op: remove
           path: /volumes/signoz-telemetrykeeper-0-data
         - op: test
@@ -237,6 +237,3 @@ spec:
           value: /data/sayit-sqlite:/var/lib/signoz
         - op: remove
           path: /volumes/signoz-metastore-sqlite-0-data
-        - op: add
-          path: /services/signoz-telemetrykeeper-zookeeper-0/user
-          value: root

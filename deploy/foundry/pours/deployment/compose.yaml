@@ -62,44 +62,36 @@ services:
     restart: unless-stopped
     volumes:
     - /data/sayit-sqlite:/var/lib/signoz
-  signoz-telemetrykeeper-zookeeper-0:
-    container_name: signoz-telemetrykeeper-zookeeper-0
-    environment:
-    - ZOO_SERVER_ID=1
-    - ALLOW_ANONYMOUS_LOGIN=yes
-    - ZOO_4LW_COMMANDS_WHITELIST=srvr, mntr, ruok
-    - ZOO_AUTOPURGE_INTERVAL=1
-    - ZOO_AUTOPURGE_RETAIN_COUNT=3
-    - ZOO_ENABLE_PROMETHEUS_METRICS=yes
-    - ZOO_HEAP_SIZE=1024
-    - ZOO_INIT_LIMIT=10
-    - ZOO_LOG_LEVEL=INFO
-    - ZOO_MAX_CLIENT_CNXNS=60
-    - ZOO_MAX_SESSION_TIMEOUT=40000
-    - ZOO_PRE_ALLOC_SIZE=65536
-    - ZOO_PROMETHEUS_METRICS_PORT_NUMBER=9141
-    - ZOO_SNAPCOUNT=100000
-    - ZOO_SYNC_LIMIT=5
-    - ZOO_TICK_TIME=2000
+  signoz-telemetrykeeper-clickhousekeeper-0:
+    container_name: signoz-telemetrykeeper-clickhousekeeper-0
+    entrypoint:
+    - /usr/bin/clickhouse-keeper
+    - --config-file=/etc/clickhouse-keeper/keeper.yaml
     healthcheck:
       interval: 30s
       retries: 3
       start_period: 40s
       test:
-      - CMD-SHELL
-      - curl -s -m 2 http://localhost:8080/commands/ruok | grep error | grep null
+      - CMD
+      - clickhouse-keeper-client
+      - -h
+      - localhost
+      - -p
+      - "9181"
+      - -q
+      - ls
       timeout: 10s
-    image: signoz/zookeeper:3.7.1
+    image: clickhouse/clickhouse-keeper:25.12.5
     networks:
     - signoz-network
     restart: unless-stopped
-    user: root
     volumes:
-    - /data/sayit-zookeeper:/bitnami/zookeeper
+    - /data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper
+    - ./telemetrykeeper/clickhousekeeper/keeper-0.yaml:/etc/clickhouse-keeper/keeper.yaml:ro
   signoz-telemetrystore-clickhouse-0-0:
     container_name: signoz-telemetrystore-clickhouse-0-0
     depends_on:
-      signoz-telemetrykeeper-zookeeper-0:
+      signoz-telemetrykeeper-clickhousekeeper-0:
         condition: service_healthy
       signoz-telemetrystore-clickhouse-user-scripts:
         condition: service_completed_successfully
