@@ -8,15 +8,15 @@ spec:
     mode: docker
   signoz:
     spec:
-      image: signoz/signoz:v0.143.0
-      version: v0.143.0
+      image: signoz/signoz:v0.145.0
+      version: v0.145.0
       env:
         SIGNOZ_ALERTMANAGER_PROVIDER: signoz
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
   ingester:
     spec:
-      image: signoz/signoz-otel-collector:v0.144.12
-      version: v0.144.12
+      image: signoz/signoz-otel-collector:v0.144.13
+      version: v0.144.13
       env:
         OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
         LOW_CARDINAL_EXCEPTION_GROUPING: "false"
@@ -81,13 +81,13 @@ spec:
                   cache_write: signoz.gen_ai.usage.cache_write.input_tokens.cost
                   total: signoz.gen_ai.usage.tokens.cost
               batch:
-                send_batch_size: 10000
-                send_batch_max_size: 11000
-                timeout: 10s
+                send_batch_size: 50000
+                send_batch_max_size: 55000
+                timeout: 5s
               batch/meter:
                 send_batch_max_size: 25000
                 send_batch_size: 20000
-                timeout: 1s
+                timeout: 5s
               resourcedetection:
                 detectors: [env, system]
                 timeout: 2s
@@ -114,7 +114,7 @@ spec:
                   - name: host.type
                   - name: container.name
             extensions:
-              health_check:
+              signoz_health_check:
                 endpoint: 0.0.0.0:13133
               pprof:
                 endpoint: 0.0.0.0:1777
@@ -127,7 +127,7 @@ spec:
                 dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_metrics
               clickhouselogsexporter:
                 dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_logs
-                timeout: 10s
+                timeout: 45s
                 use_new_schema: true
               signozclickhousemeter:
                 dsn: tcp://signoz-telemetrystore-clickhouse-0-0:9000/signoz_meter
@@ -147,7 +147,7 @@ spec:
                 logs:
                   encoding: json
               extensions:
-                - health_check
+                - signoz_health_check
                 - pprof
               pipelines:
                 traces:

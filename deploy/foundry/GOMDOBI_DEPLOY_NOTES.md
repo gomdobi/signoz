@@ -48,10 +48,37 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ## 최종 확인 요약
 
-- 2026-09-28 배포 확인: 203·204 모두 SigNoZ `v0.143.0`, Collector / migrator `v0.144.12`, foundryctl `v0.3.0`, ClickHouse `25.12.5`다. 이후 서버별 추가 승인으로 양쪽 모두 ClickHouse Keeper `25.12.5`로 전환했다.
-- 버전 업그레이드 커밋은 `074f153a23`이다. Keeper 전환의 로컬 작업 브랜치는 `codex/keeper-migration-203-20260928`이며, 후속 204 작업도 같은 작업에서 관리한다. 서버 작업 브랜치는 각각 `codex/keeper-migration-203-20260928`, `codex/keeper-migration-204-20260928`이다. 2026-09-29 사용자가 두 변경의 커밋·`main` 병합·원격 반영을 승인했다. 이 형상관리 작업에는 서버 재배포나 다른 작업의 파일 변경을 포함하지 않는다.
+- 2026-10-12 배포 확인: 203·204 모두 SigNoZ `v0.145.0`, Collector / migrator `v0.144.13`이다. foundryctl `v0.3.0`, ClickHouse / ClickHouse Keeper `25.12.5`, SQLite 및 기존 `/data` bind mount는 유지했다.
+- 버전 업그레이드 브랜치는 로컬 `codex/upgrade-signoz-v0.145.0-20261012`, 서버 각각 `codex/upgrade-signoz-v0.145.0-203-20261012`, `codex/upgrade-signoz-v0.145.0-204-20261012`다. 이어서 승인된 Collector 공식값 교정의 현재 브랜치는 로컬 `codex/collector-official-defaults-20261012`, 서버 각각 `codex/collector-official-defaults-203-20261012`, `codex/collector-official-defaults-204-20261012`다. 기존 미커밋 변경은 보존했다. 배포 후 2026-10-12 오프라인 배포 작업 방의 사용자 승인 원문으로 오늘 작업의 커밋·전용 브랜치 푸시를 승인받았다. `main` 병합·푸시는 명시적 승인 전까지 수행하지 않는다. 2026-09-29 승인된 이전 업그레이드·Keeper 전환의 형상관리와 구분한다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-10-12 203·204 Collector 공식값 교정
+
+- 사용자 승인으로 공식 Foundry `v0.3.0` 수집 템플릿과 다른 기존 설정 4개를 교정했다. 일반 batch는 `send_batch_size=50000`, `send_batch_max_size=55000`, `timeout=5s`; 계량 batch timeout은 `5s`; 로그 exporter timeout은 `45s`; 활성 health 확장은 `signoz_health_check`다. 비활성으로 남아 있던 기존 `health_check` 정의도 제거했다.
+- 공식 근거: https://github.com/SigNoz/foundry/blob/v0.3.0/internal/molding/ingestermolding/templates/config.v01446.yaml.gotmpl. 이는 승인된 네 항목을 공식값으로 맞춘 작업이며 모든 사용자 정의 설정을 제거하거나 모든 신규 기능을 활성화한 작업으로 해석하지 않는다.
+- root 전용 변경 전 보관본: 203 `/app/signoz-runtime/collector-defaults-20261012-fZCwEQ`, 204 `/app/signoz-runtime/collector-defaults-20261012-8vuZuN`. Foundry 파일·Git patch·유효 Compose·기존 실제 수집 설정·컨테이너 상태·실행 로그를 보관했으며 204 override도 포함했다. 데이터 마이그레이션이나 DB 복사는 수행하지 않았다.
+- 로컬·서버 모두 동일한 Foundry `v0.3.0`으로 forge했다. 생성 설정을 구조 비교해 네 항목만 바뀌었음을 확인했고 다른 생성 파일·유효 Compose·204 override는 동일했다. casting SHA-256은 `b9a0d1e1d0fad19dcd597ebddd3b2ddb5561a7ea2d16227564d37ec64cefcaae`, 생성 ingester 설정은 `aa5400a96a1e3066edbbd9a7cda729e714c12e2116dc8cbf8fad2b38658339cd`로 로컬·양쪽 서버가 일치했다.
+- Collector만 순차적으로 정지하고 `up -d --no-deps --force-recreate --pull never ingester`로 재생성했다. SigNoZ·ClickHouse·Keeper·sayis-dashboard-api의 컨테이너 ID/시작 시각/재시작 횟수는 전후 동일했다. 이미지·스키마는 변경하지 않았고 migrator도 재실행하지 않았다.
+- 정지 요청 → 공식 health 응답(KST): 203 `11:33:48 → 11:35:21`(93초), 204 `11:37:21 → 11:38:55`(94초). 양쪽 기존 Collector는 90초 대기 후 강제 종료돼 종료 코드 `137`을 남겼고 `OOMKilled=false`였다. 정지 구간의 실제 수집 누락량은 미확인이다.
+- 203의 재기동 후 최초 실제 설정 비교는 자동 생성된 `service.telemetry.resource.service.instance.id` 때문에 중단됐다. 공식 Collector `opamp/config_manager.go`의 `UpsertInstanceID`가 생성하는 UUID임을 확인했다. 이 런타임 식별자만 구분하고 나머지 설정 전체를 비교해 네 교정 항목 외 변경이 없음을 검증했다. 추가 재시작은 하지 않았다.
+- 최종 조회(KST): 203 `11:37:14`, 204 `11:39:04`. 실제 `/var/tmp/collector-config.yaml`에서 네 공식값을 확인했다. 새 Collector 재시작 횟수 `0`, ready 이후 ERROR `0`, 메트릭·트레이스 수신 거부/전송 실패 모두 `0`이었다. 203 로그 관련 거부/실패도 `0`; 204는 로그 관련 카운터 시계열이 없어 로그 유입 성공을 주장하지 않는다. health 응답 이후 신규 실적재는 203 메트릭 577,287 / 트레이스 996건, 204 메트릭 1,857 / 트레이스 1건이었다. 복제 readonly·session expired·대기열·대기열 오류는 양쪽 `0`이었다.
+- 공식 `signoz_health_check`는 공식 README상 항상 healthy를 반환하는 확장이다. 실제 응답의 `upSince`는 영 시각이어서 가동 시간 근거로 사용하지 않았다. Docker 시작 시각, 실제 데이터 적재와 실패 카운터를 별도로 검증했다. 근거: https://github.com/SigNoz/signoz-otel-collector/blob/v0.144.13/extension/healthcheckextension/README.md.
+- 로컬 `git diff --check` 및 Compose 검증은 종료 코드 `0`이었다. 서버 교정 당시에는 커밋·푸시·main 병합을 하지 않았으며, 후속 형상관리 승인 범위는 최종 확인 요약을 따른다.
+
+## 2026-10-12 203·204 Docker 업그레이드
+
+- 기존 고정 절차로 SigNoZ `v0.143.0` → `v0.145.0`, Collector / migrator `v0.144.12` → `v0.144.13`을 적용했다. 공식 Foundry `v0.3.0`은 유지했다. 로컬과 서버의 forge 및 Compose 검증은 종료 코드 `0`이었다.
+- 변경 전후 유효 Compose는 위 세 서비스 이미지 외 동일했다. ingester·OpAMP·ClickHouse·Keeper 생성 설정은 바이트 단위로 동일하고, 204 override도 유지했다. 새 `signozlogsnormalizer` 프로세서는 현재 pipeline에 추가하지 않았다. ClickHouse·Keeper·sayis-dashboard-api의 컨테이너 ID/시작 시각/재시작 횟수는 전후 동일했다. ZooKeeper는 기존 정지 상태로 유지했다.
+- root 전용 보관본: 203 `/app/signoz-runtime/upgrade-v0.145.0-XzHWFY`, 204 `/app/signoz-runtime/upgrade-v0.145.0-sYCvQs`. 변경 전 Foundry·바이너리·유효 Compose·Git patch·컨테이너 상태, 정지 상태 SQLite 복사본, 스키마·replica 경로·sayis 권한 비교 자료와 실행 로그를 보관했다. 204 override도 포함했다. 양쪽 SQLite 원본/복사본 일치 및 `quick_check=ok`를 확인했다. ClickHouse 전체 데이터 백업은 아니며 이미지 교체만으로 DB 원복을 보장하지 않는다.
+- Collector 변경으로 공식 migrator를 재생성했다. 양쪽 종료 코드 `0`, 트레이스 로컬 테이블 `signoz_index_v3`의 bloom_filter 인덱스 4개(`idx_attributes_http_route`, `idx_attributes_rpc_method`, `idx_attributes_gen_ai_request_model`, `idx_attributes_gen_ai_provider_name`) 및 traces JSON 컬럼 진화 메타데이터 1개를 확인했다. 기존 테이블 135개의 UUID/engine/key, 복제 테이블의 coordination 경로·replica명, sayis 권한은 유지됐다.
+- 정지 요청 → SigNoZ·Collector health 확인(KST): 203 `10:32:04 → 10:36:07`(4분 3초), 204 `10:36:41 → 10:38:38`(1분 57초). 정지 구간의 실제 수집 누락량은 미확인이다. 양쪽 Collector는 90초 종료 대기 후 강제 종료되어 종료 코드 `137`을 남겼다. 204 구버전 SigNoZ는 SIGTERM 후 종료 코드 `1`을 남겼으며 그 원인은 미확인이다. 정상 종료로 기록하지 않는다.
+- 203은 임시 검증 스크립트가 SQLite `quick_check` 이후 디렉토리를 비교하는 순서 버그로 중단됐다. 백업 조회가 만든 0-byte WAL과 32,768-byte SHM만 추가됐고 원본/백업 DB SHA-256은 동일했다. 실제 데이터 차이는 없었다. 원본 파일 일치와 보조 파일 상태를 확인하고, 비교를 조회보다 먼저 수행하도록 임시 검증 순서를 바로잡아 동일 보관본에서 이어서 배포했다. 이 중단이 위 203 정지 시간에 포함된다.
+- 최종 조회(KST): 203 `10:37:45`, 204 `10:39:51`. 양쪽 API 버전 `v0.145.0`, API health `ok`, SigNoZ·ClickHouse·Keeper·sayis-dashboard-api `healthy`, Collector `Server available`, 새 SigNoZ·Collector 재시작 횟수 `0`이었다. ready 이후 SigNoZ·Collector ERROR는 양쪽 `0`이었다.
+- health 확인 이후 실적재는 203 메트릭 528,790 / 트레이스 1,093건, 204 메트릭 9,009 / 트레이스 19건이었다. Collector 메트릭·트레이스 수신 거부 및 전송 실패 카운터는 양쪽 모두 `0`이었다. 203의 로그 관련 카운터도 `0`; 204는 해당 로그 카운터 시계열이 없어 로그 유입 성공을 주장하지 않는다. 별도 성능 시험은 수행하지 않았다.
+- 복제 테이블 및 Keeper 기존 경로는 203 12개 / 204 56개다. readonly·session expired·복제 대기열·대기열 오류·최대 복제 지연·미완료 mutation은 양쪽 모두 `0`이었다.
+- `/dev/mapper/vg_data-lv_data`의 ext4 `/data` mount와 `/data/sayit-clickhouse`, `/data/sayit-sqlite`, `/data/sayit-clickhouse-keeper`의 실제 bind mount를 확인했다. Keeper 이미지의 선언으로 생성된 `/var/lib/clickhouse` 익명 볼륨은 양쪽 모두 비어 있었다(디렉토리 할당 4KiB). 실제 Keeper log/snapshot 경로는 `/var/lib/clickhouse-keeper/coordination/{log,snapshots}`로 `/data` bind 안에 있다. 익명 볼륨을 삭제하거나 저장 설정을 변경하지 않았다.
+- 공식 릴리즈: https://github.com/SigNoz/signoz/releases/tag/v0.145.0 및 https://github.com/SigNoz/signoz-otel-collector/releases/tag/v0.144.13. 설정 교정이나 추가 기능 활성화 없이 기존 배포 방식을 유지했다.
 
 ## 2026-09-28 204 ZooKeeper → ClickHouse Keeper 전환
 
