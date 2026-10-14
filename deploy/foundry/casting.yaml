@@ -15,8 +15,8 @@ spec:
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
   ingester:
     spec:
-      image: signoz/signoz-otel-collector:v0.144.13
-      version: v0.144.13
+      image: signoz/signoz-otel-collector:v0.144.14
+      version: v0.144.14
       env:
         OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
         LOW_CARDINAL_EXCEPTION_GROUPING: "false"
