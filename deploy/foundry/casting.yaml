@@ -8,15 +8,15 @@ spec:
     mode: docker
   signoz:
     spec:
-      image: signoz/signoz:v0.145.0
-      version: v0.145.0
+      image: signoz/signoz:v0.147.0
+      version: v0.147.0
       env:
         SIGNOZ_ALERTMANAGER_PROVIDER: signoz
         SIGNOZ_TOKENIZER_JWT_SECRET: secret
   ingester:
     spec:
-      image: signoz/signoz-otel-collector:v0.144.14
-      version: v0.144.14
+      image: signoz/signoz-otel-collector:v0.144.15
+      version: v0.144.15
       env:
         OTEL_RESOURCE_ATTRIBUTES: host.name=signoz-host,os.type=linux
         LOW_CARDINAL_EXCEPTION_GROUPING: "false"
@@ -194,10 +194,10 @@ spec:
                   ip: "::/0"
                 profile: default
                 quota: default
-                grants:
-                  query:
-                    - "GRANT SELECT ON signoz_metrics.*"
-                    - "GRANT SELECT ON signoz_traces.*"
+                access_management: 1
+                named_collection_control: 1
+                show_named_collection: 1
+                show_named_collection_secrets: 1
   patches:
     - target: "deployment/compose.yaml"
       operations:

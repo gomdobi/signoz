@@ -17,6 +17,8 @@ SigNoZ/signoz upstream 릴리즈 태그 -> gomdobi/signoz main
 
 매번 새 절차나 별도 시험 환경을 만들지 않고 아래 순서를 재사용한다. 대상·버전만 승인된 값으로 바꾼다. 추가 시험과 성능 측정은 별도 요청이 있을 때만 수행한다.
 
+사용자 지시 기준: 추가·변경 사항은 SigNoZ 공식 최신 구성을 따른다. 기존 설정 유지나 선택 기능이라는 자체 판단으로 공식 변경을 제외하지 않는다. 이미지/마이그레이션뿐 아니라 공식 생성 설정과 OpAMP가 실제 전달한 런타임 설정까지 비교해 변경·적용 여부를 기록한다. 기존 사용자 승인 커스텀과 충돌하면 숨기거나 임의 결정하지 않고 차이와 영향을 보고한다.
+
 1. 공식 릴리즈와 기존 casting/실행 버전을 비교한다. SSH 별칭·적용값, Git 변경 상태, `/data` mount를 확인한다.
    - 2026-09-28 별도 승인으로 203·204 모두 ClickHouse Keeper로 전환했다. 204 전용 override도 Keeper 서비스명을 사용하며, 과거 ZooKeeper casting으로 덮어쓰지 않는다.
 2. 기존 변경을 보존하고 이번 작업 브랜치에서 casting 버전 및 공식 업그레이드 가이드가 요구하는 설정을 반영한다. 변경 전 Foundry 파일·유효 Compose·Git patch·컨테이너 상태를 root 전용 `/app/signoz-runtime/upgrade-<버전>-XXXXXX`에 보관한다. 204 override도 보관한다.
@@ -48,10 +50,27 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 
 ## 최종 확인 요약
 
-- 2026-10-12 배포 확인: 203·204 모두 SigNoZ `v0.145.0`, Collector / migrator `v0.144.13`이다. foundryctl `v0.3.0`, ClickHouse / ClickHouse Keeper `25.12.5`, SQLite 및 기존 `/data` bind mount는 유지했다.
-- 버전 업그레이드 브랜치는 로컬 `codex/upgrade-signoz-v0.145.0-20261012`, 서버 각각 `codex/upgrade-signoz-v0.145.0-203-20261012`, `codex/upgrade-signoz-v0.145.0-204-20261012`다. 이어서 승인된 Collector 공식값 교정의 현재 브랜치는 로컬 `codex/collector-official-defaults-20261012`, 서버 각각 `codex/collector-official-defaults-203-20261012`, `codex/collector-official-defaults-204-20261012`다. 기존 미커밋 변경은 보존했다. 배포 후 2026-10-12 오프라인 배포 작업 방의 사용자 승인 원문으로 오늘 작업의 커밋·전용 브랜치 푸시를 승인받았다. `main` 병합·푸시는 명시적 승인 전까지 수행하지 않는다. 2026-09-29 승인된 이전 업그레이드·Keeper 전환의 형상관리와 구분한다.
+- 2026-10-26 배포 확인: 203·204 모두 SigNoZ `v0.147.0`, Collector / migrator `v0.144.15`다. foundryctl `v0.3.0`, ClickHouse / ClickHouse Keeper `25.12.5`, SQLite 및 기존 `/data` bind mount는 유지했다.
+- 이번 작업 브랜치는 로컬 `codex/upgrade-signoz-v0.147.0-20261026`, 서버 각각 `codex/upgrade-signoz-v0.147.0-203-20261026`, `codex/upgrade-signoz-v0.147.0-204-20261026`다. 기존 미커밋 변경을 보존했다. 사용자가 이번 로컬 작업의 커밋과 `main` 병합을 별도로 승인했다. 원격 푸시는 별도 지시 후 수행하며, 과거 작업의 Git 승인을 이번 작업에 재사용하지 않는다.
+- `sayis`는 기존 사용자 승인대로 `default`와 동일한 권한을 유지한다. 양쪽 실제 `SHOW GRANTS`의 동등성과 배포 전후 불변을 확인했다. 오래된 SELECT 전용 문구·casting을 현재 운영 정책에 맞췄으며, 서버의 활성 ClickHouse 설정과 권한은 변경하지 않았다.
 - 204의 기존 복제 오류 6건은 2026-09-08 별도 승인 작업으로 정리됐다. 2026-09-09에는 해당 작업 보관본 107MB만 사용자 지시로 영구 삭제했다.
 - 아래 수치와 상태는 각 작업 당시 실행 결과다. 문서 갱신 자체를 서버 재검증이나 재배포로 보지 않는다.
+
+## 2026-10-26 203·204 Docker 업그레이드
+
+- 기존 고정 절차로 실제 서버의 SigNoZ `v0.145.0` → `v0.147.0`, Collector / migrator `v0.144.13` → `v0.144.15`를 적용했다. 로컬 main에 있던 Collector `v0.144.14`는 10월 14일 번들용 소스 반영이며 당시 서버 배포는 하지 않았다.
+- 공식 릴리즈: https://github.com/SigNoz/signoz/releases/tag/v0.147.0 및 https://github.com/SigNoz/signoz-otel-collector/releases/tag/v0.144.15. Collector 핵심 변경은 로그·트레이스 JSON 직렬화의 비유한 수/범위/중첩 처리, NaN 메트릭 계량 제외, histogram의 `+Inf` 버킷 계량 교정이다. 공식 최신 Foundry 릴리즈 `v0.3.0`의 해당 수집 템플릿은 logs processor를 `[batch]`로 생성하며 양쪽도 동일하다. `signozlogsnormalizer`를 자체 판단으로 제외한 결과가 아니라 현재 공식 기본 생성값과의 대조 결과다. 근거: https://github.com/SigNoz/foundry/blob/v0.3.0/internal/molding/ingestermolding/templates/config.v01446.yaml.gotmpl.
+- root 전용 변경 전 보관본: 203 `/app/signoz-runtime/upgrade-v0.147.0-rYt18q`, 204 `/app/signoz-runtime/upgrade-v0.147.0-bGKe8N`. Foundry·바이너리·유효 Compose·Git patch·컨테이너 상태·실제 Collector 설정·권한·replica 경로·테이블 UUID/engine, 정지 상태 SQLite 전체 복사본과 실행 로그를 보관했다. 204 override도 포함한다. SQLite 원본/복사본 파일 해시 일치와 `quick_check=ok`를 확인했다. ClickHouse 전체 데이터 백업은 아니다.
+- 공식 Collector migrator는 양쪽 종료 코드 `0`이다. SigNoZ 시작 시 SQLite 마이그레이션 133–137번이 적용된 것을 migration 테이블로 확인했다. 이는 순서 번호이며 각각 rule_view 추가, 로그·트레이스 필드 권한 추가, 자동 동기화 LLM 가격 규칙 정리, Telegram 채널 v2 사양 보완, 메트릭 필드/관리 역할 권한 갱신이다. 이들 `Down`은 DB 원복을 구현하지 않으므로 이미지 교체만으로 SQLite를 원복할 수 없다.
+- 실제 유효 Compose 변경은 SigNoZ·Collector·migrator의 세 이미지뿐이다. ingester·OpAMP·Keeper·ClickHouse functions 생성물과 204 override는 동일하다. 양쪽 ClickHouse·Keeper 및 나머지 기존 서비스의 ID/시작 시각/재시작 횟수와 mount를 유지했다. mount 비교는 Docker가 반환한 배열 순서가 아닌 destination별 실제 속성으로 수행했다.
+- 실제 Collector 설정은 배포 파일과 구분해 비교했다. 새 SigNoZ의 공식 OpAMP GenAI 규칙이 적용되어 `signozspanmapper`는 변경됐다. `gen_ai.llm` 정의 v4의 mapper 13개, `gen_ai.agent` 정의 v3의 5개, `gen_ai.tool` 정의 v3의 6개와 모든 공식 source가 양쪽 SQLite·실제 Collector에서 활성 상태임을 공식 v0.147.0 JSON 정의와 직접 대조했다. operation·tool·추론/캐시 토큰·finish reason·session·agent 속성의 새 매핑을 포함한다. 나머지 설정 차이는 telemetry의 실행 instance UUID 제거뿐이다. 생성 파일이 같다는 이유로 실제 수집 설정까지 동일하다고 보고하지 않는다. 공식 정의: https://github.com/SigNoz/signoz/tree/v0.147.0/pkg/modules/spanmapper/implspanmapper/fs/definitions.
+- 위 mapper 24개는 기존 규칙을 포함한 최신 정의의 총수이며 이번에 24개 전부가 추가됐다는 뜻이 아니다. 서로 다른 AI 계측 도구의 모델·제공자·토큰·대화·Agent·Tool 속성을 공통 `gen_ai.*` 키로 맞춰 조회·집계하는 규칙이다. AI 실행 환경 설치나 기존 데이터 일괄 변환 작업은 아니다.
+- `sayis`의 기존 `default` 동등 권한은 변경하지 않았다. casting에 남은 SELECT 전용 정의를 기존 활성 설정의 네 권한 플래그(`access_management`, `named_collection_control`, `show_named_collection`, `show_named_collection_secrets` 모두 `1`)로 동기화했다. 재생성한 ClickHouse 설정은 필드 순서를 제외하면 기존 활성 설정과 같고 암호도 동일하다. 활성 설정 파일은 바이트 단위로 보존해 ClickHouse 재시작/설정 변경을 하지 않았다. 로컬·203·204 casting SHA-256은 `ec8faf3fe905e438782ba6c0b7fefcb2277ba584ebf1e6235e87e0c3c5a2c731`이다.
+- 정지 요청 시각(KST)은 203 `13:26:06`, 204 `13:31:08`이다. 기존 Collector는 양쪽 10초 대기 후 종료 코드 `137`, `OOMKilled=false`로 정지됐다. 기존 SigNoZ 종료 코드는 203 `1`(원인 미확인), 204 `0`이다. 203을 정상 종료로 기록하지 않는다. 정지 구간의 실제 수집 누락량은 미확인이다.
+- 203은 준비 상태 스크립트가 health 응답의 `Server available` 문구를 로그에서 찾는 버그로 대기했다. 새 Collector 로그의 `Everything is ready`와 공식 health HTTP 응답을 직접 확인하고 추가 재시작 없이 검증을 이어갔다. Collector 기동 준비 로그는 `13:26:36`, health 재확인 기록은 `13:29:56`이며 후자를 실제 서비스 중단 시간으로 해석하지 않는다. 204 health 확인은 `13:31:34`다.
+- 실행 후 검증: 양쪽 API `v0.147.0`·health `ok`, Collector health `Server available`, 새 SigNoZ·Collector 재시작 횟수 `0`, SQLite `quick_check=ok`다. 기존 테이블 UUID/engine과 replica 경로/replica명이 동일하다. 복제 readonly·session expired·대기열·대기열 오류·최대 지연은 양쪽 모두 `0`이다.
+- 최종 관찰 시각(KST): 203 `13:31:02`, 204 `13:32:27`. health 확인 이후 실제 신규 적재는 203 메트릭 `300,216` / 트레이스 `539`건, 204 메트릭 `16,323` / 트레이스 `14`건이다. Collector 메트릭·트레이스 수신 거부 및 전송 실패는 모두 `0`이다. 203 로그 관련 카운터도 `0`; 204에는 해당 로그 시계열이 없어 로그 유입 성공을 주장하지 않는다. 별도 부하·성능 시험이나 테스트 데이터 주입은 하지 않았다.
+- 같은 관찰 구간의 Collector ERROR는 양쪽 `0`, SigNoZ ERROR는 203 `0`, 204 `failed to get active license` 1건이다. 후자는 활성 라이선스 조회 오류이며 API·수집 정상 여부와 구분한다. 시작 과정의 OpAMP 연결 재시도와 active-query 로그 디렉토리 생성 오류도 관찰했으므로 전체 로그가 무오류였다고 보고하지 않는다.
 
 ## 2026-10-12 203·204 Collector 공식값 교정
 
@@ -278,10 +297,10 @@ dc=(docker compose --ansi never --progress plain -f /app/signoz/deploy/foundry/p
 - ClickHouse macro는 기존 값과 일치해야 한다.
   - `shard: "01"`
   - `replica: "example01-01-1"`
-- ClickHouse의 `sayis` 사용자는 `sayis-dashboard-api` 전용 읽기 계정으로 유지한다.
+- ClickHouse의 `sayis` 사용자는 기존 승인대로 `default`와 동일한 권한으로 유지한다. SELECT 전용으로 축소하지 않는다.
   - 인증 설정: `password`
-  - 권한: `GRANT SELECT ON signoz_metrics.*`
-  - 권한: `GRANT SELECT ON signoz_traces.*`
+  - 기존 활성 설정의 네 권한 플래그를 casting에도 유지한다.
+  - 양쪽 `SHOW GRANTS`를 계정명만 정규화해 비교하고, 업그레이드 전후 `sayis` 권한도 비교한다.
   - 원본 암호는 프라이빗 저장소의 casting에 유지한다.
 - 영구 데이터는 호스트 bind mount를 사용한다.
   - `/data/sayit-clickhouse:/var/lib/clickhouse`
@@ -369,7 +388,7 @@ docker compose -f deploy/foundry/pours/deployment/compose.yaml config --quiet
 ```bash
 grep -nE 'signoz/signoz:v|signoz-otel-collector:v|clickhouse/clickhouse-server:|clickhouse/clickhouse-keeper:|9000:9000|8123:8123|9181:9181|8889:8889|uptime_kuma_api_key|/data/sayit-clickhouse:/var/lib/clickhouse|/data/sayit-clickhouse-keeper:/var/lib/clickhouse-keeper' deploy/foundry/pours/deployment/compose.yaml
 grep -nE 'job_name: uptime-kuma|password_file: /app/secrets/uptime_kuma_api_key|endpoint: 0.0.0.0:8889|prometheus' deploy/foundry/pours/deployment/ingester/ingester.yaml
-grep -nE 'replica: example01-01-1|shard: "01"|sayis:|GRANT SELECT ON signoz_(metrics|traces)\.\*' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
+grep -nE 'replica: example01-01-1|shard: "01"|sayis:|access_management:|named_collection_control:|show_named_collection' deploy/foundry/pours/deployment/telemetrystore/clickhouse/config-0-0.yaml
 test "$(grep -Fc '/data/sayit-clickhouse:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml)" -eq 1
 ! grep -qE 'signoz-clickhouse|signoz-telemetrystore-0-0-data:/var/lib/clickhouse' deploy/foundry/pours/deployment/compose.yaml
 ```
@@ -504,7 +523,7 @@ sudo docker exec signoz-telemetrystore-clickhouse-0-0 \
 - 최신 metrics write 시각이 현재 시각으로 계속 갱신되어야 한다. 로그 유입 `0`건을 Infrastructure 메트릭 유입 없음으로 표현하지 않는다.
 - Collector는 Docker healthcheck가 없을 수 있다. 컨테이너 `running`만으로 완료 판정하지 않고 health endpoint, 전송 실패·수신 거부 지표와 실제 신규 적재를 확인한다.
 - 필수 포트와 Uptime Kuma/Prometheus collector 설정이 유지되어야 한다.
-- `sayis` 계정은 `signoz_metrics`와 `signoz_traces`에 대한 `SELECT` 권한만 가져야 한다.
+- `sayis` 계정은 기존 승인된 `default` 동등 권한을 유지해야 한다. `SHOW GRANTS FOR sayis`와 `SHOW GRANTS FOR default`를 계정명만 정규화해 비교하고, 변경 전후 권한이 같은지도 확인한다.
 - 모든 SigNoZ 구성 요소와 연동 서비스는 `signoz-network`에서 공식 서비스명으로 통신해야 한다.
 - 기존 `signoz-net` 네트워크가 남아 있지 않아야 한다.
 
